@@ -13,14 +13,15 @@ public sealed class MainForm : Form
 {
     readonly string advisorDir, liveDir, repoRoot, dotnetDir;
     readonly Settings settings;
-    readonly ClaudeRunner claude;
     readonly Voice voice = new();
     readonly Queue<(string trigger, string? text, JsonObject? req)> queue = new();
     readonly HashSet<string> seenRequests = new();
     FileSystemWatcher? requestWatcher;
     CancellationTokenSource? cts;
     readonly SpeechInput speech;
-    readonly LiveClaude live;
+    readonly AdvisorSession advisor;
+    readonly GameWatch watch;
+    readonly ChatLog chat;
     readonly ConversationLog convo;
 
     readonly RichTextBox log = new() { ReadOnly = true, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(24, 26, 30), ForeColor = Color.Gainsboro, Font = new Font("Segoe UI", 10f) };
@@ -40,9 +41,11 @@ public sealed class MainForm : Form
         liveDir = Path.Combine(advisorDir, "live");
         Directory.CreateDirectory(liveDir);
         settings = Settings.Load(Path.Combine(advisorDir, "companion.json"));
-        claude = new ClaudeRunner(settings, advisorDir, dotnetDir);
         speech = new SpeechInput(settings.WhisperModel, settings.MicDevice);
-        live = new LiveClaude(settings, advisorDir, dotnetDir);
+        advisor = new AdvisorSession(settings, advisorDir, dotnetDir);
+        watch = new GameWatch(liveDir);
+        chat = new ChatLog(liveDir);
+        HookAdvisorEvents();
         convo = new ConversationLog(liveDir);
 
         SuspendLayout();
@@ -71,10 +74,13 @@ public sealed class MainForm : Form
 
         var timer = new System.Windows.Forms.Timer { Interval = 1500 };
         timer.Tick += (_, _) => RefreshPending();
+        var follow = new System.Windows.Forms.Timer { Interval = 10000 };
+        follow.Tick += (_, _) => FollowGame();
+        follow.Start();
         timer.Start();
 
         WriteStatus("idle", null);
-        _ = Task.Run(live.WarmUp); // start the live advisor now: start-up is the slow part
+        _ = Task.Run(advisor.WarmUp); // start the advisor now: start-up is the slow part
         System("Ready. In the game: hold Ctrl+Shift+V = talk to me, Ctrl+Shift+A = look at this, Ctrl+Shift+B = briefing, Ctrl+Shift+Q = voice on/off, Ctrl+Shift+C = show/hide this window, Ctrl+Shift+P = sketch a plan.");
         if (!File.Exists(SpeechInput.DefaultModelPath) && string.IsNullOrWhiteSpace(settings.WhisperModel))
             System("Speech model not found (" + SpeechInput.DefaultModelPath + "); voice input is off.");
@@ -95,9 +101,9 @@ public sealed class MainForm : Form
         var newBtn = SmallButton("New chat", (_, _) =>
         {
             if (MessageBox.Show(this, "Start a new conversation? The advisor keeps its colony plan file, but forgets this chat.", "ONI Advisor", MessageBoxButtons.OKCancel) == DialogResult.OK)
-            { settings.SessionId = null; settings.Save(); System("New conversation started."); }
+            { advisor.NewConversation(); System("New conversation started."); }
         });
-        var stopBtn = SmallButton("Stop", (_, _) => { cts?.Cancel(); claude.Cancel(); voice.StopSpeaking(); });
+        var stopBtn = SmallButton("Stop", (_, _) => { cts?.Cancel(); cts = null; voice.StopSpeaking(); });
         var testVoiceBtn = SmallButton("Test voice", (_, _) =>
         {
             voice.Speak("Voice test. Breathability is ninety six percent, and Meep needs a skill point.");
@@ -260,6 +266,9 @@ public sealed class MainForm : Form
             case "voice-stop": await VoiceFromGameAsync(); break;
             case "companion": ToggleVisible(); break;
             case "briefing": Enqueue("briefing", null, req); break;
+            case "chat" when (string?)req["text"] is { Length: > 0 } typed: Enqueue("chat", typed, req); break;
+            case "new-chat": advisor.NewConversation(); chat.Add("note", "New conversation started.", ReadCycle()); break;
+            case "stop": cts?.Cancel(); cts = null; voice.StopSpeaking(); break;
             case "speak-toggle": ToggleVoice(); break;
             default: System($"({trigger} from the game; auto-reply is off)"); break;
         }
@@ -294,7 +303,7 @@ public sealed class MainForm : Form
         if (said.Length == 0) return;
         WriteStatus("heard", said);
         await Task.Delay(1300); // the game checks the status about once a second; let it show what was heard
-        Enqueue("ask", said);
+        Enqueue("ask", said, new JsonObject { ["via"] = "voice" });
     }
 
     /// <summary>Primes Whisper with this colony's words: duplicant names, building names, common ONI terms.</summary>
@@ -388,14 +397,33 @@ public sealed class MainForm : Form
         catch { }
     }
 
-    // ------------------------------------------------------------------ talking to Claude
+    // ------------------------------------------------------------------ talking to the advisor
 
+    DateTime lastPlayerUtc = DateTime.MinValue, lastProactiveUtc = DateTime.MinValue;
+    bool autosavePending;
+    string currentActivity = "";
+
+    void HookAdvisorEvents()
+    {
+        advisor.TextChanged += t => chat.Stream(t.Length > 0 ? "writing" : "thinking", t, currentActivity);
+        advisor.Activity += a =>
+        {
+            currentActivity = a;
+            chat.Add("activity", a, ReadCycle());
+            chat.Stream("thinking", "", a);
+            BeginInvoke(() => { status.Text = a + "…"; Append("", "· " + a, Color.DimGray); });
+            WriteStatus("thinking", a + "…");
+        };
+        advisor.Thought += t => { chat.Add("thought", t, ReadCycle()); BeginInvoke(() => Append("", t, Color.Gray)); };
+    }
+
+    /// <summary>Every question, request and game update goes to the one advisor conversation, one turn at a time.</summary>
     void Enqueue(string trigger, string? text, JsonObject? req = null)
     {
-        if (trigger == "autosave" && queue.Any(q => q.trigger == "autosave")) return; // one briefing is enough
+        if (trigger == "autosave") { if (autosavePending) return; autosavePending = true; }
         if (text != null && trigger == "briefing") Append("", "Preparing a briefing on: " + text, Color.Gray);
         else if (text != null) Append("You", text, Color.LightSkyBlue);
-        else Append("", trigger switch
+        else if (trigger != "update") Append("", trigger switch
         {
             "autosave" => "New cycle — asking for a briefing…",
             "pod" => "Printing Pod — asking for a pick…",
@@ -404,120 +432,147 @@ public sealed class MainForm : Form
             "briefing" => "Asking for a briefing…",
             _ => "Asking…",
         }, Color.Gray);
-        if (trigger is "autosave" or "briefing")
-        {
-            // Briefings: full model and workflow, one at a time, in the background.
-            queue.Enqueue((trigger, text, req));
-            if (!claude.Busy) _ = Pump();
-        }
-        else _ = AskLive(trigger, text, req); // live questions never wait behind a briefing
+        _ = Ask(trigger, text, req);
     }
 
-    readonly SemaphoreSlim liveLock = new(1, 1);
-
-    /// <summary>Live mode: the persistent fast channel, with the colony summary in the prompt.</summary>
-    async Task AskLive(string trigger, string? text, JsonObject? req)
+    async Task Ask(string trigger, string? text, JsonObject? req)
     {
-        await liveLock.WaitAsync();
+        int cycle = (int?)req?["cycle"] ?? ReadCycle();
+        if (trigger != "update")
+        {
+            lastPlayerUtc = DateTime.UtcNow;
+            if (text != null && trigger is "ask" or "chat") chat.Add("you", text, cycle);
+            else chat.Add("note", trigger switch
+            {
+                "autosave" => $"Cycle {cycle}: preparing the cycle briefing",
+                "pod" => "Printing Pod open: asking for a pick",
+                "plan" => "Sketch sent" + (text != null ? ": " + text : ""),
+                "hotkey" => "Look at this" + (text != null ? ": " + text : ""),
+                "briefing" => "Preparing a briefing" + (text != null ? " on " + text : ""),
+                _ => trigger,
+            }, cycle);
+        }
+        if (advisor.Busy && trigger != "update") { chat.Stream("thinking", "", "finishing the previous answer first"); WriteStatus("thinking", "finishing the previous answer…"); }
+
+        string view = ReadView();
+        string facts = view.StartsWith("{") && trigger != "autosave" ? await LiveFacts.FetchAsync(liveDir, view, text) : "";
+        string? shot = trigger is "hotkey" or "plan" ? (string?)req?["screenshot"] : null;
+        var briefingFile = Path.Combine(liveDir, "briefing", "briefing.json");
+        var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
+
+        cts ??= new CancellationTokenSource();
+        var reply = await advisor.AskAsync(BuildPrompt(trigger, text, req, view, facts), cts.Token, shot != null && File.Exists(shot) ? shot : null);
+        if (trigger == "autosave") autosavePending = false;
+        currentActivity = "";
+        status.Text = reply.Seconds is double s ? $"ready (last answer {s:0} s)" : "ready";
+
+        // A briefing written during this turn: archive it and tell the player.
         try
         {
-            status.Text = "advisor is thinking…";
-            WriteStatus("thinking", null);
-            cts = new CancellationTokenSource();
-            // Fetch what the question most likely needs first: the fast model answers from what is in the prompt.
-            string view = ReadView();
-            string facts = view.StartsWith("{") ? await LiveFacts.FetchAsync(liveDir, view, text) : "";
-            string? shot = trigger is "hotkey" or "plan" ? (string?)req?["screenshot"] : null;
-            var reply = await live.AskAsync(BuildPrompt(trigger, text, req, view, facts), cts.Token, shot != null && File.Exists(shot) ? shot : null);
-            status.Text = reply.Seconds is double s ? $"ready (last answer {s:0.0} s)" : "ready";
-            if (reply.Ok)
+            if (File.Exists(briefingFile) && File.GetLastWriteTimeUtc(briefingFile) > before)
             {
-                // "[[briefing: topic]]" = no honest short answer: hand the question to briefing mode.
-                var m = global::System.Text.RegularExpressions.Regex.Match(reply.Text, @"\[\[\s*briefing\s*:\s*(.*?)\]\]", global::System.Text.RegularExpressions.RegexOptions.Singleline);
-                string shown = m.Success ? reply.Text.Remove(m.Index, m.Length).Trim() : reply.Text;
-                Append("Advisor", shown, Color.PaleGreen);
-                if (settings.Speak) voice.Speak(shown);
-                LogAnswer(text ?? $"({trigger})", shown);
-                convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", _ => "live" }, (int?)req?["cycle"] ?? ReadCycle(),
-                          text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", _ => "" }, shown);
-                WriteStatus("replied", shown);
-                if (m.Success)
-                {
-                    string topic = m.Groups[1].Value.Trim();
-                    Enqueue("briefing", $"{topic} (the player asked: \"{text ?? trigger}\")");
-                }
+                var json = File.ReadAllText(briefingFile);
+                string title = Briefings.Archive(liveDir, json);
+                convo.Add("briefing", cycle, text ?? (trigger == "autosave" ? "new cycle" : null), ConversationLog.Summarize(json));
+                chat.Add("note", $"Briefing ready: {title} — open it with Ctrl+Shift+B", cycle);
             }
-            else { System("Advisor error: " + reply.Error); WriteStatus("error", reply.Error); }
         }
-        finally { liveLock.Release(); }
-    }
+        catch { }
 
-    async Task Pump()
-    {
-        while (queue.Count > 0)
+        if (!reply.Ok)
         {
-            var (trigger, text, req) = queue.Dequeue();
-            status.Text = "preparing a briefing…";
-            WriteStatus("thinking", null);
-            var briefingFile = Path.Combine(liveDir, "briefing", "briefing.json");
-            var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
-            var reply = await claude.AskAsync(BuildPrompt(trigger, text, req), CancellationToken.None);
-            try
-            {
-                // Log the briefing itself, so live mode knows what it said.
-                if (File.Exists(briefingFile) && File.GetLastWriteTimeUtc(briefingFile) > before)
-                    convo.Add("briefing", ReadCycle(), text ?? (trigger == "autosave" ? "new cycle" : null), ConversationLog.Summarize(File.ReadAllText(briefingFile)));
-            }
-            catch { }
-            status.Text = "ready";
-            if (reply.Ok)
-            {
-                Append("Advisor", reply.Text, Color.PaleGreen); // briefings are read step by step in the game
-                WriteStatus("replied", reply.Text);
-            }
-            else { System("Advisor error: " + reply.Error); WriteStatus("error", reply.Error); }
+            chat.Stream("idle");
+            if (trigger == "update") return; // unasked: stay quiet about failures
+            System("Advisor error: " + reply.Error);
+            chat.Add("note", "Advisor error: " + reply.Error, cycle);
+            WriteStatus("error", reply.Error);
+            return;
         }
+        string answer = reply.Text;
+        if (trigger == "update" && (answer.Length == 0 || answer.Contains("(silent)", StringComparison.OrdinalIgnoreCase)))
+        {
+            chat.Stream("idle");
+            WriteStatus("idle", null);
+            return;
+        }
+        chat.Add("advisor", answer, cycle);
+        chat.Stream("idle");
+        Append("Advisor", answer, Color.PaleGreen);
+        string spoken = Spoken(answer);
+        if (settings.Speak && trigger is not "autosave" and not "briefing") voice.Speak(spoken);
+        LogAnswer(text ?? $"({trigger})", answer);
+        convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", _ => "live" }, cycle,
+                  text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "update" => "(nothing asked)", _ => "" }, answer);
+        WriteStatus("replied", spoken);
     }
 
-    string BuildPrompt(string trigger, string? text, JsonObject? req, string? view = null, string? facts = null)
+    /// <summary>What to read aloud: a short answer whole; a long one's first two sentences and a pointer to the panel.</summary>
+    static string Spoken(string answer)
     {
-        var sb = new System.Text.StringBuilder();
+        var plain = global::System.Text.RegularExpressions.Regex.Replace(answer, @"[*_`#>]|\[[^\]]*\]\([^)]*\)", "");
+        plain = global::System.Text.RegularExpressions.Regex.Replace(plain, @"^\s*[-•]\s*", "", global::System.Text.RegularExpressions.RegexOptions.Multiline).Trim();
+        if (plain.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 45) return plain;
+        var sentences = global::System.Text.RegularExpressions.Regex.Split(plain, @"(?<=[.!?])\s+");
+        return string.Join(" ", sentences.Take(2)) + " The rest is in the advisor panel.";
+    }
+
+    /// <summary>Every ~10 s: follow the game, and let the advisor speak up when something happened.</summary>
+    void FollowGame()
+    {
+        bool fresh = watch.Poll();
+        if (!fresh || settings.Proactive == "never" || advisor.Busy || !watch.HasEvents) return;
+        var now = DateTime.UtcNow;
+        if ((now - lastPlayerUtc).TotalSeconds < 45 || (now - lastProactiveUtc).TotalSeconds < settings.ProactiveMinSeconds) return;
+        if (settings.Proactive == "serious" && !watch.HasSerious) return;
+        if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(Path.Combine(liveDir, "view.json"))).TotalSeconds > 30) return; // game not running
+        lastProactiveUtc = now;
+        Enqueue("update", null);
+    }
+
+    string BuildPrompt(string trigger, string? text, JsonObject? req, string view, string facts)
+    {
+        var sb = new global::System.Text.StringBuilder();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
-        bool briefing = trigger is "autosave" or "briefing";
-        sb.AppendLine($"[mode: {(briefing ? "briefing" : "live")}] [trigger: {trigger}] [cycle {cycle}] [{DateTime.Now:HH:mm}]");
-        sb.AppendLine("Data: live/state.json (fresh). Map images: live/map/. MapQuery: dotnet \"" + MapQueryDll() + "\" <summary|region|cell|find> ...");
-        if ((string?)req?["screenshot"] is { } shot) sb.AppendLine("Screenshot: " + RelativeToAdvisor(shot));
+        string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : "companion");
+        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}]");
+        if (advisor.FreshConversation)
+        {
+            string recent = convo.Recent(20, 8000);
+            if (recent.Length > 0) sb.AppendLine("(New conversation. What you and the player said earlier, oldest first:)\n" + recent);
+        }
+        string updates = watch.Take();
+        if (updates.Length > 0) sb.AppendLine("Since your last message, in the game:\n" + updates);
+        sb.AppendLine("Player's view: " + view);
+        if (!string.IsNullOrWhiteSpace(facts)) sb.AppendLine("Fetched from the game just now:\n" + facts.TrimEnd());
+        sb.AppendLine("Colony summary: " + ColonyDigest.Build(liveDir));
+        sb.AppendLine("Tools: MapQuery = dotnet \"" + MapQueryDll() + "\" (live region|cell|buildings|pipes|ports|rates|find ...). Files: live/state.json, live/map/, live/screenshots/.");
+        if ((string?)req?["screenshot"] is { } shotPath)
+            sb.AppendLine(trigger is "hotkey" or "plan" ? "The attached screenshot is what the player sees right now." : "Screenshot: " + RelativeToAdvisor(shotPath));
         switch (trigger)
         {
             case "autosave":
+                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing to live/briefing/briefing.json — as long as the situation needs (see CLAUDE.md), with plenty of marks. Then reply with one sentence on what it covers.");
+                break;
             case "briefing":
-                if (trigger == "briefing" && text != null)
-                    sb.AppendLine("Write a FOCUSED briefing to live/briefing/briefing.json (2-5 steps; see CLAUDE.md) answering this topic in depth: " + text + ". Use the player's view (live/view.json) and live queries for the places involved; draw marks and, if a layout is involved, a project. Reply with ONE sentence saying what the briefing covers.");
-                else
-                    sb.AppendLine("Write the cycle briefing to live/briefing/briefing.json (2-5 steps, Now -> Next -> Long term; see CLAUDE.md). Compare with the previous live/history snapshot if useful. Update the colony plan file if goals changed. Reply with ONE sentence saying what the briefing covers.");
+                sb.AppendLine(text != null
+                    ? "Write a briefing on: " + text + " — to live/briefing/briefing.json, as many steps as it needs, with plenty of marks and a project if a layout is involved. Then reply with one sentence on what it covers."
+                    : "The player asked for a briefing now. Write it to live/briefing/briefing.json — as long as the situation needs, with plenty of marks. Then reply with one sentence on what it covers.");
                 break;
             case "pod":
-                sb.AppendLine("The Printing Pod selection is open: recommend one option from live/pod.json. One or two spoken sentences. If pod.json is old or missing, say so.");
+                sb.AppendLine("The Printing Pod selection is open: recommend one option from live/pod.json, briefly saying why.");
                 break;
             case "plan":
-                sb.AppendLine("Review the player's sketch in live/plan/player-marks.json (they refer to marks as #1, #2, ...). One or two spoken sentences; draw corrections as advisor marks.");
+                sb.AppendLine("Review the player's sketch in live/plan/player-marks.json (they call marks #1, #2, ...); draw corrections as advisor marks.");
                 break;
             case "hotkey":
-                sb.AppendLine("The player pressed 'look at this' in the game. Look at the screenshot and state; say the single most important thing in one or two spoken sentences.");
+                sb.AppendLine("The player pressed 'look at this'. Say what matters most about what they are looking at.");
+                break;
+            case "update":
+                sb.AppendLine("Nothing was asked: this is a game update. If something above is worth telling the player now — a risk, a mistake, a consequence of what they just built, a good next step — say it briefly (it is read aloud), with marks if a place matters. Don't repeat what you already told them. Otherwise reply exactly: (silent)");
                 break;
         }
-        if (!briefing)
-        {
-            sb.AppendLine("Live mode: at most two short spoken sentences, no coordinates (draw a mark and say 'see the mark').");
-            sb.AppendLine("Answer from the facts below (view, nearby buildings and gas, colony summary, recent conversation) and the ONI numbers in CLAUDE.md. \"Here\"/\"this\" = the cursor tile or the selection. If the facts don't cover the question, run ONE query rather than guess: dotnet \"" + MapQueryDll() + "\" live region|cell|buildings|find ... Stay consistent with the recent conversation, including briefings: build on it, and if you now think something said there was wrong, say so and why.");
-            if ((string?)req?["screenshot"] is not null && trigger is "hotkey" or "plan") sb.AppendLine("The screenshot attached is what the player sees right now.");
-            sb.AppendLine("Player's view: " + (view ?? ReadView()));
-            if (!string.IsNullOrWhiteSpace(facts)) sb.AppendLine("Fetched from the game just now:\n" + facts.TrimEnd());
-            sb.AppendLine("Colony summary: " + ColonyDigest.Build(liveDir));
-        }
-        string recent = convo.Recent(briefing ? 14 : 8, briefing ? 6000 : 3500);
-        if (recent.Length > 0) sb.AppendLine("Recent conversation with the player (live answers and briefings, oldest first):\n" + recent);
-        if (text != null && !briefing) sb.AppendLine("Player: " + text);
+        if (text != null && trigger is "ask" or "chat") sb.AppendLine($"Player ({(via == "voice" ? "spoken" : "typed")}): {text}");
+        else if (text != null && trigger is "plan" or "hotkey") sb.AppendLine("Player adds: " + text);
         return sb.ToString();
     }
 
@@ -613,7 +668,7 @@ public sealed class MainForm : Form
     {
         requestWatcher?.Dispose();
         playbackWatcher?.Dispose();
-        live.Dispose();
+        advisor.Dispose();
         voice.Dispose();
         speech.Dispose();
         try { File.Delete(Path.Combine(liveDir, "advisor-status.json")); } catch { } // the game then shows "companion not running"

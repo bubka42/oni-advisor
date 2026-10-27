@@ -89,6 +89,23 @@ namespace OniAdvisor
             Quad(r - o / 2, b + h / 2, o, h, c, 1);
         }
 
+        /// <summary>A straight bar between two world points (tile centres are x + 0.5).</summary>
+        public void Segment(float ax, float ay, float bx, float by, Color c, float width = 0.22f)
+        {
+            float dx = bx - ax, dy = by - ay, len = Mathf.Sqrt(dx * dx + dy * dy);
+            if (len < 0.01f) return;
+            var go = Quad((ax + bx) / 2f, (ay + by) / 2f, len + width, width, c, 1);
+            go.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(dy, dx) * Mathf.Rad2Deg);
+        }
+
+        /// <summary>An arrow head at (bx, by) pointing away from (ax, ay).</summary>
+        public void ArrowHead(float ax, float ay, float bx, float by, Color c, float size = 0.9f)
+        {
+            float ang = Mathf.Atan2(by - ay, bx - ax);
+            foreach (float side in new[] { 2.6f, -2.6f })
+                Segment(bx, by, bx + Mathf.Cos(ang + side) * size, by + Mathf.Sin(ang + side) * size, c, 0.22f);
+        }
+
         /// <summary>Small square centred on a tile.</summary>
         public void Dot(int x, int y, Color c, float size = 0.55f) => Quad(x + 0.5f, y + 0.5f, size, size, c, 2);
 
@@ -124,7 +141,7 @@ namespace OniAdvisor
             tmp.rectTransform.sizeDelta = new Vector2(30f, 3f);
         }
 
-        void Quad(float cx, float cy, float w, float h, Color c, int order)
+        GameObject Quad(float cx, float cy, float w, float h, Color c, int order)
         {
             var go = New("quad");
             go.transform.position = new Vector3(cx, cy, Z - 0.01f * order);
@@ -133,6 +150,7 @@ namespace OniAdvisor
             sr.sprite = White;
             sr.color = c;
             sr.sortingOrder = SortingOrder + order;
+            return go;
         }
 
         GameObject New(string kind)

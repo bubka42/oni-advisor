@@ -59,7 +59,7 @@ namespace OniAdvisor
                 if (File.Exists(BriefingFile))
                 {
                     var t = File.GetLastWriteTimeUtc(BriefingFile);
-                    if (t != fileTime && (System.DateTime.UtcNow - t).TotalMilliseconds > 500 && Load())
+                    if (t != fileTime && (System.DateTime.UtcNow - t).TotalMilliseconds > 500 && Load(BriefingFile))
                     {
                         bool first = fileTime == default;
                         fileTime = t;
@@ -98,9 +98,9 @@ namespace OniAdvisor
             }
         }
 
-        static bool Load()
+        static bool Load(string path)
         {
-            var root = JObject.Parse(File.ReadAllText(BriefingFile));
+            var root = JObject.Parse(File.ReadAllText(path));
             var newSteps = new List<Step>();
             foreach (var s in root["steps"] ?? new JArray())
             {
@@ -119,7 +119,7 @@ namespace OniAdvisor
             if (newSteps.Count == 0) return false;
             steps.Clear();
             steps.AddRange(newSteps);
-            id = (string)root["id"] ?? File.GetLastWriteTimeUtc(BriefingFile).Ticks.ToString();
+            id = (string)root["id"] ?? File.GetLastWriteTimeUtc(path).Ticks.ToString();
             title = (string)root["title"] ?? "Briefing";
             cycle = (int?)root["cycle"] ?? 0;
             return true;
@@ -140,8 +140,21 @@ namespace OniAdvisor
             Open();
         }
 
+        /// <summary>Replays a briefing from the archive (the advisor panel's BRIEFINGS tab).</summary>
+        public static void OpenFile(string path)
+        {
+            try
+            {
+                if (open) Close();
+                if (Load(path)) Open();
+                else AdvisorHud.Show("That briefing has no steps", 3f);
+            }
+            catch (Exception e) { Log.Warn("briefing open: " + e.Message); AdvisorHud.Show("Could not open that briefing", 3f); }
+        }
+
         static void Open()
         {
+            if (AdvisorPanel.IsOpen) AdvisorPanel.Close();
             open = true;
             unseen = false;
             try
@@ -259,7 +272,7 @@ namespace OniAdvisor
             hlg.spacing = 8; hlg.childAlignment = TextAnchor.MiddleCenter; hlg.childForceExpandWidth = false; hlg.childControlWidth = true; hlg.childControlHeight = true;
             OniStyle.MakeButton(bar, "◀ BACK", () => Go(current - 1), 100);
             OniStyle.MakeButton(bar, "NEXT ▶", () => Go(current + 1), 100);
-            OniStyle.MakeButton(bar, "NEW", () => { AdvisorHud.Show("Asking the advisor for a new briefing…", 3f); AdvisorRunner.Instance?.RequestBriefing(); }, 80);
+            OniStyle.MakeButton(bar, "ALL", () => { Close(); AdvisorPanel.Open(chat: false); }, 70);
             OniStyle.MakeButton(bar, "CLOSE", Close, 100);
             var ft = OniStyle.Rect("footer", panel);
             ft.anchorMin = new Vector2(0, 0); ft.anchorMax = new Vector2(1, 0); ft.pivot = new Vector2(0.5f, 0);
@@ -270,7 +283,7 @@ namespace OniAdvisor
         static void Rebuild()
         {
             if (panel == null || list == null) return;
-            headerText.text = $"ADVISOR BRIEFING · CYCLE {cycle}" + (string.IsNullOrEmpty(title) ? "" : "");
+            headerText.text = $"CYCLE {cycle} · " + (string.IsNullOrEmpty(title) ? "BRIEFING" : title.ToUpperInvariant());
             for (int i = list.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(list.GetChild(i).gameObject);
 
             for (int i = 0; i < steps.Count; i++)
@@ -287,22 +300,6 @@ namespace OniAdvisor
                 if (!string.IsNullOrEmpty(s.Text) && active) Add(row, s.Text, 13, color: OniStyle.TextMuted);
             }
 
-            var answers = RecentAnswers();
-            if (answers.Count > 0)
-            {
-                var head = OniStyle.Rect("answers-head", list);
-                Add(head, "RECENT ANSWERS", 15, header: true, color: OniStyle.HeaderLight);
-                head.gameObject.AddComponent<VerticalLayoutGroup>().childControlHeight = true;
-                foreach (var (q, a) in answers)
-                {
-                    var row = OniStyle.Rect("answer", list);
-                    OniStyle.Fill(row, OniStyle.Row, false);
-                    var rv = row.gameObject.AddComponent<VerticalLayoutGroup>();
-                    rv.padding = new RectOffset(10, 10, 4, 6); rv.childControlHeight = true; rv.childControlWidth = true; rv.childForceExpandHeight = false;
-                    if (!string.IsNullOrEmpty(q)) Add(row, "You: " + q, 13, color: OniStyle.TextMuted);
-                    Add(row, a, 14);
-                }
-            }
             footerText.text = steps.Count > 0 ? $"Step {current + 1} of {steps.Count} · game paused · Ctrl+Shift+B closes" : "";
         }
 
@@ -310,21 +307,6 @@ namespace OniAdvisor
         {
             var rt = OniStyle.Rect("text", parent);
             OniStyle.Label(rt, text, size, header: header, color: color);
-        }
-
-        /// <summary>Last few live answers, newest first, from live/advisor-log.json (written by the companion).</summary>
-        static List<(string q, string a)> RecentAnswers()
-        {
-            var result = new List<(string, string)>();
-            try
-            {
-                var path = Path.Combine(Paths.LiveDir, "advisor-log.json");
-                if (!File.Exists(path)) return result;
-                foreach (var e in JArray.Parse(File.ReadAllText(path)).Reverse().Take(5))
-                    result.Add(((string)e["q"], (string)e["a"]));
-            }
-            catch { }
-            return result;
         }
 
         public static void Destroy()

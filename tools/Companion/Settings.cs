@@ -8,7 +8,10 @@ public sealed class Settings
 {
     public string? SessionId { get; set; }
     public string? ClaudePath { get; set; }          // empty = auto-detect
-    public string? Model { get; set; }               // empty = Claude Code default
+    public string? Model { get; set; } = "sonnet";   // the advisor's model: sonnet (answers in ~5-15 s) or opus (deeper, slower)
+    public string? Effort { get; set; } = "medium";  // low | medium | high
+    public string Proactive { get; set; } = "freely"; // never | serious | freely: may the advisor speak up unasked?
+    public int ProactiveMinSeconds { get; set; } = 120; // at least this long between unasked comments
     public string? MapQueryDll { get; set; }         // empty = auto-detect next to this app's repo
     public bool AutoBriefOnAutosave { get; set; } = true;
     public bool AutoPodPick { get; set; } = true;
@@ -19,8 +22,6 @@ public sealed class Settings
     public bool VoiceAutoSend { get; set; } = false;
     public string? WhisperModel { get; set; }   // empty = %USERPROFILE%\.oni-advisor\models\ggml-small.en.bin
     public string? MicDevice { get; set; }      // part of the microphone's name; empty = "Microphone Array"   // false: dictated text goes into the input box to check first
-    public string? LiveModel { get; set; } = "sonnet";  // live answers: sonnet (~2.5 s) or haiku (~1.8 s)
-    public string? LiveEffort { get; set; } = "low";
     public bool TopMost { get; set; } = true;
     public int TimeoutSeconds { get; set; } = 300;
 

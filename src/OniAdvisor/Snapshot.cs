@@ -33,6 +33,7 @@ namespace OniAdvisor
                 ["rooms"] = Section(errors, "rooms", Rooms),
                 ["power"] = Section(errors, "power", Power),
                 ["rates"] = Section(errors, "rates", () => Networks.ColonyRates()),
+                ["alerts"] = Section(errors, "alerts", Alerts),
                 ["buildings"] = Section(errors, "buildings", Buildings),
                 ["construction"] = Section(errors, "construction", Construction),
                 ["projects"] = Section(errors, "projects", () => ProjectStore.StatusSummary()),
@@ -231,6 +232,23 @@ namespace OniAdvisor
                 if (germs.Count > 0) r["germs"] = JObject.FromObject(germs);
                 r["buildings"] = CountNames(room.buildings?.Select(b => b != null ? b.GetProperName() : null));
                 arr.Add(r);
+            }
+            return arr;
+        }
+
+        // ---------------------------------------------------------------- alerts
+
+        /// <summary>The game's own notifications (the ones in the top-left alert list), most serious first.</summary>
+        static JToken Alerts()
+        {
+            var arr = new JArray();
+            var list = HarmonyLib.Traverse.Create(NotificationManager.Instance).Field("notifications").GetValue<List<Notification>>();
+            if (list == null) return arr;
+            foreach (var g in list.Where(n => n != null).GroupBy(n => StripName(n.titleText) + "|" + n.Type).OrderBy(g => g.First().Type))
+            {
+                var n = g.First();
+                string who = string.Join(", ", g.Select(x => StripName(x.NotifierName)).Where(s => !string.IsNullOrEmpty(s)).Distinct().Take(6));
+                arr.Add($"{n.Type}: {StripName(n.titleText)}" + (who.Length > 0 ? $" ({who})" : ""));
             }
             return arr;
         }

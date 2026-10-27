@@ -8,21 +8,28 @@ using UnityEngine;
 
 namespace OniAdvisor
 {
-    /// <summary>A planning mark: an area, a line (shaft/route) or a point, in tile coordinates.</summary>
+    /// <summary>
+    /// A planning mark in tile coordinates: area, line (shaft/route), point; advisor marks also path (a route
+    /// through several points, optionally ending in an arrow), arrow, and outline (the footprint of the
+    /// building at x0,y0). Tone colours advisor marks by meaning: problem, build, check, info.
+    /// </summary>
     internal sealed class Mark
     {
         public int Id;
         public string By = "player"; // player | advisor
-        public string Kind = "area";  // area | line | point
+        public string Kind = "area";  // area | line | point | path | arrow | outline
         public int X0, Y0, X1, Y1;
         public string Label;
         public string Color; // optional "#RRGGBB" for advisor marks
+        public string Tone;  // problem | build | check | info (advisor marks)
+        public bool Arrow;   // path: arrow head at the last point
+        public List<(int x, int y)> Points = new List<(int x, int y)>();
 
         public JObject ToJson() => new JObject
         {
             ["id"] = Id, ["by"] = By, ["kind"] = Kind,
             ["x0"] = X0, ["y0"] = Y0, ["x1"] = X1, ["y1"] = Y1,
-            ["label"] = Label, ["color"] = Color,
+            ["label"] = Label, ["color"] = Color, ["tone"] = Tone,
         };
 
         public static Mark FromJson(JToken t) => new Mark
@@ -36,6 +43,9 @@ namespace OniAdvisor
             Y1 = (int?)t["y1"] ?? (int?)t["y0"] ?? (int?)t["y"] ?? 0,
             Label = (string)t["label"],
             Color = (string)t["color"],
+            Tone = ((string)t["tone"])?.ToLowerInvariant(),
+            Arrow = (bool?)t["arrow"] ?? false,
+            Points = (t["points"] as JArray)?.Select(p => ((int)p[0], (int)p[1])).ToList() ?? new List<(int x, int y)>(),
         };
 
         public bool Contains(int x, int y)
@@ -190,7 +200,7 @@ namespace OniAdvisor
             advisorLayer.Clear();
             foreach (var m in Advisor)
             {
-                var line = ParseColor(m.Color, AdvisorLine);
+                var line = ParseColor(m.Color, ToneColor(m.Tone));
                 Draw(advisorLayer, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
             }
         }
@@ -204,7 +214,7 @@ namespace OniAdvisor
                 if (m.Id == 0) m.Id = i;
                 i++;
                 m.By = "advisor";
-                var line = ParseColor(m.Color, AdvisorLine);
+                var line = ParseColor(m.Color, ToneColor(m.Tone));
                 Draw(r, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
             }
         }
@@ -219,6 +229,26 @@ namespace OniAdvisor
                     r.Dot(m.X0, m.Y0, line, 0.7f);
                     if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 1.6f, label, line);
                     break;
+                case "path":
+                case "arrow":
+                    var pts = m.Kind == "arrow" || m.Points.Count < 2 ? new List<(int x, int y)> { (m.X0, m.Y0), (m.X1, m.Y1) } : m.Points;
+                    for (int i = 1; i < pts.Count; i++)
+                        r.Segment(pts[i - 1].x + 0.5f, pts[i - 1].y + 0.5f, pts[i].x + 0.5f, pts[i].y + 0.5f, line);
+                    if (m.Kind == "arrow" || m.Arrow)
+                        r.ArrowHead(pts[pts.Count - 2].x + 0.5f, pts[pts.Count - 2].y + 0.5f, pts[pts.Count - 1].x + 0.5f, pts[pts.Count - 1].y + 0.5f, line);
+                    else foreach (var p in pts) r.Dot(p.x, p.y, line, 0.35f);
+                    if (label != null) r.Label(pts[0].x + 0.5f, pts[0].y + 1.6f, label, line);
+                    break;
+                case "outline":
+                    int cell = Grid.XYToCell(m.X0, m.Y0);
+                    var obj = Grid.IsValidCell(cell) ? Grid.Objects[cell, (int)ObjectLayer.Building] : null;
+                    var bld = obj != null ? obj.GetComponent<Building>() : null;
+                    int ox0 = m.X0, oy0 = m.Y0, ox1 = m.X0, oy1 = m.Y0;
+                    if (bld != null) { var e = bld.GetExtents(); ox0 = e.x; oy0 = e.y; ox1 = e.x + e.width - 1; oy1 = e.y + e.height - 1; }
+                    r.Rect(ox0, oy0, ox1, oy1, new Color(line.r, line.g, line.b, 0.12f));
+                    r.Outline(ox0, oy0, ox1, oy1, line);
+                    if (label != null) r.Label((ox0 + ox1 + 1) / 2f, oy1 + 1.6f, label, line);
+                    break;
                 case "line":
                     foreach (var (x, y) in m.LineCells()) r.Rect(x, y, x, y, new Color(line.r, line.g, line.b, 0.45f));
                     if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line);
@@ -228,6 +258,18 @@ namespace OniAdvisor
                     r.Outline(m.X0, m.Y0, m.X1, m.Y1, line);
                     if (label != null) r.Label((Math.Min(m.X0, m.X1) + Math.Max(m.X0, m.X1) + 1) / 2f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line);
                     break;
+            }
+        }
+
+        /// <summary>Advisor colours by meaning: red problem, green build/do, yellow check, cyan information.</summary>
+        static Color ToneColor(string tone)
+        {
+            switch (tone)
+            {
+                case "problem": return new Color(1f, 0.36f, 0.33f, 0.95f);
+                case "build": return new Color(0.49f, 0.86f, 0.42f, 0.95f);
+                case "check": return new Color(1f, 0.82f, 0.35f, 0.95f);
+                default: return AdvisorLine;
             }
         }
 

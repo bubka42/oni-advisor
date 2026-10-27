@@ -9,7 +9,7 @@ namespace OniAdvisor
 {
     /// <summary>
     /// Lives on the Game object and drives everything:
-    ///   - state.json every 60 s; snapshot + screenshot + maps at autosave and on Ctrl+Shift+A
+    ///   - state.json every 20 s (the companion follows the game from it); snapshot + screenshot + maps at autosave and on Ctrl+Shift+A
     ///   - map memory recording (every frame, throttled inside MapMemory)
     ///   - Printing Pod options when the selection screen opens
     ///   - planning mode (Ctrl+Shift+P), overlay cycling (Ctrl+Shift+M), project focus (Ctrl+Shift+N),
@@ -22,7 +22,7 @@ namespace OniAdvisor
     {
         public static AdvisorRunner Instance { get; private set; }
 
-        const float PeriodicSeconds = 60f;
+        const float PeriodicSeconds = 20f;
         const float MemorySaveSeconds = 300f;
         const float PollSeconds = 1f;
         const float RuleSeconds = 5f;
@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -67,6 +67,7 @@ namespace OniAdvisor
             Guard("hud", AdvisorHud.Tick);
             Guard("overlay", () => Overlays.Tick(now));
             Guard("briefing", () => Briefing.Tick(now));
+            Guard("advisor panel", () => AdvisorPanel.Tick(now));
             Guard("live queries", () => LiveQueries.Tick(now));
 
             if (now >= nextMemorySave)
@@ -114,6 +115,7 @@ namespace OniAdvisor
                 WriteRequest("voice-stop", null);
             }
 
+            if (AdvisorPanel.Typing) return; // keys go to the chat box
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             if (!ctrl || !shift) return;
@@ -121,6 +123,7 @@ namespace OniAdvisor
             if (Input.GetKeyDown(KeyCode.V) && !talking) { talking = true; WriteRequest("voice-start", null); }
             if (Input.GetKeyDown(KeyCode.C)) WriteRequest("companion", null);
             if (Input.GetKeyDown(KeyCode.B)) Guard("briefing", Briefing.Toggle);
+            if (Input.GetKeyDown(KeyCode.T)) Guard("advisor panel", AdvisorPanel.Toggle);
             if (Input.GetKeyDown(KeyCode.Q)) WriteRequest("speak-toggle", null);
             if (Input.GetKeyDown(KeyCode.P)) Guard("planning toggle", PlanMode.Toggle);
             if (Input.GetKeyDown(KeyCode.M)) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
@@ -216,7 +219,8 @@ namespace OniAdvisor
             if (request) WriteRequest(trigger, File.Exists(path) ? path : null);
         }
 
-        static void WriteRequest(string trigger, string screenshot)
+        /// <summary>A request to the companion; extra fields (e.g. the typed text of a chat message) are merged in.</summary>
+        internal static void WriteRequest(string trigger, string screenshot, JObject extra = null)
         {
             try
             {
@@ -231,6 +235,7 @@ namespace OniAdvisor
                     ["maps"] = screenshot != null ? Path.Combine(Paths.LiveDir, "map") : null,
                     ["createdUtc"] = System.DateTime.UtcNow.ToString("o"),
                 };
+                if (extra != null) req.Merge(extra);
                 Paths.WriteAtomic(Path.Combine(Paths.Sub("requests"), $"{Paths.Stamp()}-{trigger}.json"), req.ToString(Formatting.Indented));
             }
             catch (Exception e) { Log.Warn("request write failed: " + e); }
