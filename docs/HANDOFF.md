@@ -1,8 +1,15 @@
-# Handoff notes (2026-10-27, end of first evening session)
+# Handoff notes
 
 For an agent picking this up. Read with `README.md` (what it is) and `docs/STATUS.md` (what is tested).
 
-## Where things stand
+**Latest (2026-10-28):** the advisor was redesigned into one conversation with an in-game chat panel,
+briefing archive, richer marks and a Kokoro voice; see the top section of `docs/STATUS.md` for what changed
+and what to check first. The Steam start-up problem below resolved itself: the player played with the
+live/briefing version afterwards (their exchanges are in
+`~/.claude/projects/C--Users-extre-OneDrive-Documents-Klei-OxygenNotIncluded-advisor/`). The sections below
+describe the 2026-10-27 state; where they talk about "live mode" vs "briefing mode", that split is gone.
+
+## Where things stood on 2026-10-27
 
 - **Installed in the game** (mods/Dev/OniAdvisor, built 19:44): everything below, including briefing mode,
   ONI styling, live view + queries, voice toggle. **Not yet seen running**: right after installing, ONI
@@ -58,7 +65,7 @@ for voice output.
 
 ## Hotkeys (all Ctrl+Shift)
 
-A look · V hold-to-talk · B briefing · Q voice on/off · C show/hide companion · P planning mode
+A look · V hold-to-talk · T advisor panel (chat + briefings) · B briefing · Q voice on/off · C show/hide companion · P planning mode
 (drag area, Shift+drag line, click point, right-click delete, Esc leave, Ctrl+Shift+P send) · X clear
 marks (planning) · M overlay cycle · N project focus.
 

@@ -20,6 +20,10 @@ public sealed class Settings
     public bool Speak { get; set; } = false;          // read live answers aloud
     public bool SpeakBriefings { get; set; } = true;  // read briefing steps aloud (the game waits for each)
     public bool VoiceAutoSend { get; set; } = false;
+    public string TtsEngine { get; set; } = "kokoro";  // kokoro (natural, offline; falls back to windows) | windows
+    public string? TtsModelDir { get; set; }           // empty = best installed model under %USERPROFILE%\.oni-advisor\models
+    public int? TtsSpeaker { get; set; }               // Kokoro voice id; empty = a good English voice for the model
+    public float TtsSpeed { get; set; } = 1.0f;
     public string? WhisperModel { get; set; }   // empty = %USERPROFILE%\.oni-advisor\models\ggml-small.en.bin
     public string? MicDevice { get; set; }      // part of the microphone's name; empty = "Microphone Array"   // false: dictated text goes into the input box to check first
     public bool TopMost { get; set; } = true;

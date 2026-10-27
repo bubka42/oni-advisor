@@ -35,6 +35,32 @@ against the installed game build (U59-744825) by reading the game's assemblies; 
   `live/advisor-status.json` from the companion.
 - Not yet checked: pod.json, delegation, companion auto-reaction to requests (blocked by the folder bug).
 
+## Redesign: one advisor, in-game panel, briefing archive, Kokoro voice (2026-10-28) — built, not yet run
+
+From the player's feedback (live mode felt like "someone busy elsewhere"; wants Claude Code-style chat in
+game with annotations; briefings forced into 4 steps with too few marks; archive; better voice):
+- **One conversation**: `AdvisorSession` (companion) = one persistent Claude Code process, Sonnet at medium
+  effort, full tools, streaming (`--include-partial-messages`), resumed across restarts via `SessionId`.
+  Replaces the live channel and the separate briefing runs. Answers take ~5–15 s by design.
+- **Follows the game**: `GameWatch` diffs `state.json` (now every 20 s; includes the game's alerts) and puts
+  "Since your last message, in the game: …" into the next prompt. `Proactive` (never | serious | freely,
+  default freely; ≥ `ProactiveMinSeconds` = 120 s apart, not within 45 s of the player speaking) sends a
+  `trigger: update` turn; the advisor replies `(silent)` when there's nothing worth saying.
+- **In-game panel** (`AdvisorPanel`, Ctrl+Shift+T): CHAT (conversation from `live/chat/chat.json`, the answer
+  being written + current activity from `live/chat/stream.json`, typing box; Enter sends, Esc leaves the
+  box; game keys blocked via a `KScreenManager.OnKeyDown/OnKeyUp` prefix; LOOK / BRIEF ME / STOP / NEW CHAT)
+  and BRIEFINGS (archive from `live/briefing/archive/index.json`; click = replay via `Briefing.OpenFile`).
+- **Briefings**: any length (instructions), archived by the companion; new mark kinds `outline` (building
+  footprint), `path` (+arrow), `arrow`; `tone` problem/build/check/info.
+- **Voice**: `KokoroVoice` (sherpa-onnx 1.13.8, offline), streamed sentence-by-sentence with long sentences
+  split at commas; Windows voice as fallback (`TtsEngine`, `TtsModelDir`, `TtsSpeaker`, `TtsSpeed`).
+  Installed model: `kokoro-int8-multi-lang-v1_1` (only 3 English voices: af_maple 0, af_sol 1, bf_vale 2;
+  logs unknown-phoneme warnings). Better English: `kokoro-multi-lang-v1_0` (350 MB, af_heart = id 3) —
+  not downloaded yet. Measured (warm, 4 threads): first audio ~2.4 s for a 15-word sentence, RTF ~0.7.
+- Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
+  keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
+  `(silent)` handling, Kokoro audio device.
+
 ## Advice quality fixes (2026-10-27, after reading the player's real exchanges) — built, not yet run in game
 
 Findings from the advisor's own transcripts (`~/.claude/projects/C--Users-extre-OneDrive-Documents-Klei-OxygenNotIncluded-advisor/`):

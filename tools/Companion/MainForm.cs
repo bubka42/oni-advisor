@@ -42,6 +42,7 @@ public sealed class MainForm : Form
         Directory.CreateDirectory(liveDir);
         settings = Settings.Load(Path.Combine(advisorDir, "companion.json"));
         speech = new SpeechInput(settings.WhisperModel, settings.MicDevice);
+        voice.Configure(settings);
         advisor = new AdvisorSession(settings, advisorDir, dotnetDir);
         watch = new GameWatch(liveDir);
         chat = new ChatLog(liveDir);
@@ -108,7 +109,7 @@ public sealed class MainForm : Form
         {
             voice.Speak("Voice test. Breathability is ninety six percent, and Meep needs a skill point.");
             if (voice.Error != null) System(voice.Error);
-            else System("Speaking a test sentence. Then hold the mic button, say something, and check the text that appears.");
+            else System($"Speaking a test sentence ({voice.Engine}). Then hold the mic button, say something, and check the text that appears.");
         });
         top.Controls.AddRange(new Control[] { topMostBox, speakBox, settingsBtn, newBtn, stopBtn, testVoiceBtn });
 
