@@ -1,0 +1,3 @@
+title: "ONI Advisor"
+description: "Exports colony state and screenshots so an external advisor can give guidance. Read-only; respects fog of war."
+staticID: extre.OniAdvisor

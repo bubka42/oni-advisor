@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The game's own assemblies (incl. Harmony 2.4) are built for .NET Framework 4.8. -->
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>OniAdvisor</AssemblyName>
+    <RootNamespace>OniAdvisor</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>0.1.0</Version>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+
+    <!-- Override on the command line if the game lives elsewhere: -p:GameDir=... -->
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded</GameDir>
+    <GameManaged>$(GameDir)\OxygenNotIncluded_Data\Managed</GameManaged>
+    <ModDeployDir Condition="'$(ModDeployDir)' == ''">$(USERPROFILE)\OneDrive\Documents\Klei\OxygenNotIncluded\mods\Dev\OniAdvisor</ModDeployDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Game assemblies: compile against them, never copy them. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp" HintPath="$(GameManaged)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="Assembly-CSharp-firstpass" HintPath="$(GameManaged)\Assembly-CSharp-firstpass.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(GameManaged)\0Harmony.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameManaged)\Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(GameManaged)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(GameManaged)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(GameManaged)\UnityEngine.InputLegacyModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(GameManaged)\UnityEngine.ScreenCaptureModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(GameManaged)\UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(GameManaged)\UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(GameManaged)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(GameManaged)\UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(GameManaged)\Unity.TextMeshPro.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="mod.yaml;mod_info.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- dotnet build -p:Deploy=true copies the mod into the game's Dev mods folder. -->
+  <Target Name="DeployMod" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <Copy SourceFiles="$(TargetPath);mod.yaml;mod_info.yaml" DestinationFolder="$(ModDeployDir)" />
+    <Message Importance="high" Text="Deployed OniAdvisor to $(ModDeployDir)" />
+  </Target>
+
+</Project>
