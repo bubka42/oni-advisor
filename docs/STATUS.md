@@ -60,6 +60,13 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
 - **Tips with urgency** (player request): unasked tips start with [critical]/[urgent]/[later]; the companion
   writes `live/tips.json`; `TipBulb` hangs a bulb from the top of the screen in that colour (critical pauses
   the game and opens the panel; urgent pulses; hover shows the tip; click opens the panel = seen).
+- **Threads + long-term planning** (player request): every tip, briefing and answer can get a Slack-style
+  thread (REPLY under it; BRIEFINGS tab DISCUSS; briefing player ASK; bulb click opens the tip thread). Same
+  Claude session; prompts carry `[thread: N]` + the thread so far. `chat.json` entries have `thread` /
+  `briefing`; archive index has `chat`. PLAN tab shows `live/colony-plan.md` (advisor-maintained) with a
+  `plan` thread. Calm moments trigger `review` turns (every `PlanReviewMinutes` = 12) to advance the plan.
+- **Kokoro v1.0** downloaded (`kokoro-multi-lang-v1_0`, 54 voices; default af_heart = 3): first audio ~0.8 s,
+  RTF ~0.2 ? much faster than the int8 v1.1 model (which can be deleted).
 - Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
   keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
   `(silent)` handling, Kokoro audio device.

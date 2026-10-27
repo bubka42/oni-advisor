@@ -270,10 +270,11 @@ namespace OniAdvisor
             bar.sizeDelta = new Vector2(-20, 34); bar.anchoredPosition = new Vector2(0, 40);
             var hlg = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
             hlg.spacing = 8; hlg.childAlignment = TextAnchor.MiddleCenter; hlg.childForceExpandWidth = false; hlg.childControlWidth = true; hlg.childControlHeight = true;
-            OniStyle.MakeButton(bar, "◀ BACK", () => Go(current - 1), 100);
-            OniStyle.MakeButton(bar, "NEXT ▶", () => Go(current + 1), 100);
+            OniStyle.MakeButton(bar, "◀ BACK", () => Go(current - 1), 86);
+            OniStyle.MakeButton(bar, "NEXT ▶", () => Go(current + 1), 86);
+            OniStyle.MakeButton(bar, "ASK", () => { var t = AdvisorPanel.ThreadForBriefing(id); Close(); if (t != null) AdvisorPanel.OpenThread(t); else AdvisorPanel.Open(); }, 70);
             OniStyle.MakeButton(bar, "ALL", () => { Close(); AdvisorPanel.Open(chat: false); }, 70);
-            OniStyle.MakeButton(bar, "CLOSE", Close, 100);
+            OniStyle.MakeButton(bar, "CLOSE", Close, 86);
             var ft = OniStyle.Rect("footer", panel);
             ft.anchorMin = new Vector2(0, 0); ft.anchorMax = new Vector2(1, 0); ft.pivot = new Vector2(0.5f, 0);
             ft.sizeDelta = new Vector2(-24, 30); ft.anchoredPosition = new Vector2(0, 6);

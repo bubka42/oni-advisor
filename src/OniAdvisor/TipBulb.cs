@@ -24,7 +24,7 @@ namespace OniAdvisor
         static TextMeshProUGUI countText, hoverText;
         static long seenUpTo = -1, alertedUpTo = -1;
         static System.DateTime fileTime;
-        static string level, newestText;
+        static string level, newestText, newestChat; // newestChat: the newest unseen tip's chat entry = its thread
         static int unseen;
 
         static string TipsFile => Path.Combine(Paths.LiveDir, "tips.json");
@@ -43,6 +43,7 @@ namespace OniAdvisor
             unseen = fresh.Count;
             level = fresh.Any(x => (string)x["level"] == "critical") ? "critical" : fresh.Any(x => (string)x["level"] == "urgent") ? "urgent" : fresh.Count > 0 ? "later" : null;
             newestText = fresh.Count > 0 ? (string)fresh.Last()["text"] : null;
+            newestChat = fresh.Count > 0 && fresh.Last()["chat"] != null ? ((long)fresh.Last()["chat"]).ToString() : null;
 
             // A new critical tip: stop the clock and show it.
             var critical = fresh.LastOrDefault(x => (string)x["level"] == "critical" && ((long?)x["n"] ?? 0) > alertedUpTo);
@@ -108,7 +109,7 @@ namespace OniAdvisor
             glass.color = col;
             glow.color = new Color(col.r, col.g, col.b, 0.3f);
             countText.text = unseen > 1 ? unseen.ToString() : "";
-            hoverText.text = $"<b>{(level == "critical" ? "CRITICAL" : level == "urgent" ? "CHECK SOON" : "TIP")}</b>  {Short(newestText, 160)}\n<size=12><color=#D2D4EB>Click to open the advisor</color></size>";
+            hoverText.text = $"<b>{(level == "critical" ? "CRITICAL" : level == "urgent" ? "CHECK SOON" : "TIP")}</b>  {Short(newestText, 160)}\n<size=12><color=#D2D4EB>Click to discuss it with the advisor</color></size>";
         }
 
         static string Short(string s, int max = 90)
@@ -174,7 +175,7 @@ namespace OniAdvisor
             glass = bulbRt.gameObject.AddComponent<Image>(); glass.sprite = Circle; glass.raycastTarget = true;
             var btn = bulbRt.gameObject.AddComponent<Button>();
             btn.targetGraphic = glass;
-            btn.onClick.AddListener(() => { AdvisorPanel.Open(); AllSeen(); });
+            btn.onClick.AddListener(() => { if (newestChat != null) AdvisorPanel.OpenThread(newestChat); else AdvisorPanel.Open(); AllSeen(); });
 
             var ct = OniStyle.Rect("count", bulbRt);
             OniStyle.Stretch(ct);

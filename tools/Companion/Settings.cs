@@ -12,6 +12,7 @@ public sealed class Settings
     public string? Effort { get; set; } = "medium";  // low | medium | high
     public string Proactive { get; set; } = "freely"; // never | serious | freely: may the advisor speak up unasked?
     public int ProactiveMinSeconds { get; set; } = 120; // at least this long between unasked comments
+    public int PlanReviewMinutes { get; set; } = 12;    // when calm, look ahead and advance the long-term plan this often
     public string? MapQueryDll { get; set; }         // empty = auto-detect next to this app's repo
     public bool AutoBriefOnAutosave { get; set; } = true;
     public bool AutoPodPick { get; set; } = true;
