@@ -32,6 +32,7 @@ namespace OniAdvisor
                 ["dupes"] = Section(errors, "dupes", Dupes),
                 ["rooms"] = Section(errors, "rooms", Rooms),
                 ["power"] = Section(errors, "power", Power),
+                ["rates"] = Section(errors, "rates", () => Networks.ColonyRates()),
                 ["buildings"] = Section(errors, "buildings", Buildings),
                 ["construction"] = Section(errors, "construction", Construction),
                 ["projects"] = Section(errors, "projects", () => ProjectStore.StatusSummary()),
@@ -165,6 +166,7 @@ namespace OniAdvisor
                 var mem = MapMemory.Current;
                 var gasMass = new Dictionary<string, float>();
                 var germs = new Dictionary<string, long>();
+                var gasSeen = new Dictionary<string, int>(); // gas type per tile from the plain view, when no overlay data
                 float tempSum = 0f;
                 int gasCells = 0, liquidCells = 0, tempCells = 0, gasKnown = 0, tempKnown = 0, germKnown = 0;
                 float gasOldest = 0f, tempOldest = 0f, germOldest = 0f;
@@ -181,6 +183,8 @@ namespace OniAdvisor
                         }
                         else if (el.IsLiquid) liquidCells++;
                     }
+                    else if (mem != null && mem.TryElement(cell, out var pe, out _) && pe != null && pe.IsGas)
+                        gasSeen[StripName(pe.name)] = (gasSeen.TryGetValue(StripName(pe.name), out var gn) ? gn : 0) + 1;
                     if (mem != null && mem.TryTemp(cell, out float k, out float ts))
                     {
                         tempKnown++; tempCells++; tempSum += k;
@@ -216,6 +220,12 @@ namespace OniAdvisor
                     // Share of the room seen in each overlay, and how old the oldest observation is.
                     r["known"] = $"gas {100 * gasKnown / n}% (oldest {R(gasOldest)} cycles), " +
                                  $"temp {100 * tempKnown / n}% (oldest {R(tempOldest)}), germs {100 * germKnown / n}% (oldest {R(germOldest)})";
+                }
+                if (gasMass.Count == 0 && gasSeen.Count > 0)
+                {
+                    // No oxygen-overlay data: still say which gases fill the room (share of its tiles, no masses).
+                    int seen = gasSeen.Values.Sum();
+                    r["gasTypes"] = string.Join(", ", gasSeen.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {100 * kv.Value / seen}%")) + " of tiles (no masses: oxygen overlay not seen)";
                 }
                 if (liquidCells > 0) r["liquidCells"] = liquidCells;
                 if (germs.Count > 0) r["germs"] = JObject.FromObject(germs);
@@ -257,7 +267,8 @@ namespace OniAdvisor
                     ["generators"] = CountNames(cm.GetGeneratorsOnCircuit(id)?.Select(g => g != null ? g.GetProperName() : null)),
                     ["consumers"] = CountNames(cm.GetConsumersOnCircuit(id)?.Select(e => StripName(e?.Name))),
                     ["batteries"] = new JArray(batteries.Where(bt => bt != null)
-                        .Select(bt => $"{StripName(bt.GetProperName())} {R(bt.PercentFull * 100f, 0)}%")),
+                        .Select(bt => $"{StripName(bt.GetProperName())} {R(bt.PercentFull * 100f, 0)}%" +
+                                      (bt.PercentFull < bt.PreviousPercentFull - 0.0001f ? " draining" : bt.PercentFull > bt.PreviousPercentFull + 0.0001f ? " charging" : ""))),
                 };
                 arr.Add(c);
             }

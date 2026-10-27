@@ -47,6 +47,7 @@ public static class ColonyDigest
                         var gases = g.EnumerateObject().Take(3).Select(p => $"{p.Name} {p.Value}g").ToList();
                         if (gases.Count > 0) sb.Append(" [" + string.Join(", ", gases) + "]");
                     }
+                    if (room.TryGetProperty("gasTypes", out var gt)) sb.Append(" [" + gt.GetString() + "]");
                     if (room.TryGetProperty("known", out var k)) sb.Append(" (" + k.GetString() + ")");
                     sb.Append("; ");
                 }
@@ -55,7 +56,14 @@ public static class ColonyDigest
 
             if (r.TryGetProperty("power", out var power) && power.ValueKind == JsonValueKind.Array)
                 foreach (var c in power.EnumerateArray())
-                    sb.AppendLine($"Power circuit {Num(c, "id")}: using {Num(c, "wattsUsed")} W of {Num(c, "wattsGenerated")} W generated (safe {Num(c, "maxSafeWatts")} W), batteries {string.Join(", ", c.TryGetProperty("batteries", out var b) ? b.EnumerateArray().Select(x => x.GetString()) : Array.Empty<string?>())}.");
+                {
+                    string used = c.TryGetProperty("wattsUsed", out var u) && u.ValueKind == JsonValueKind.Number ? Math.Max(0, u.GetDouble()).ToString("0") : "?";
+                    string gens = c.TryGetProperty("generators", out var g) && g.ValueKind == JsonValueKind.Object ? string.Join(", ", g.EnumerateObject().Select(p => $"{p.Value}x {p.Name}")) : "";
+                    sb.AppendLine($"Power circuit {Num(c, "id")}: using {used} W of {Num(c, "wattsGenerated")} W generated now (max {Num(c, "wattsPotential")} W; wire limit {Num(c, "maxSafeWatts")} W){(gens.Length > 0 ? ", generators " + gens : ", no generators")}, stored {Num(c, "joulesStored")} J, batteries {string.Join(", ", c.TryGetProperty("batteries", out var b) ? b.EnumerateArray().Select(x => x.GetString()) : Array.Empty<string?>())}.");
+                }
+
+            if (r.TryGetProperty("rates", out var rates) && rates.ValueKind == JsonValueKind.Object && rates.TryGetProperty("byElement", out var by))
+                sb.AppendLine("Production/consumption (" + Str(rates, "note") + "): " + string.Join("; ", by.EnumerateObject().Take(10).Select(p => $"{p.Name} {p.Value.GetString()}")) + ".");
 
             if (r.TryGetProperty("buildings", out var bl) && bl.TryGetProperty("notable", out var notable))
             {

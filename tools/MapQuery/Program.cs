@@ -20,6 +20,7 @@ if (a[0] == "selftest") { file = SelfTest.Write(); Console.WriteLine("synthetic 
 
 // "live" asks the running game (fresh data, memory mode respected) instead of reading map.bin:
 //   live region x0 y0 x1 y1 [terrain|gas|temp] | live cell x y | live buildings x0 y0 x1 y1 | live find <what> [x y] | live view
+//   live pipes x0 y0 x1 y1 [gas|liquid|power|rail] | live ports x0 y0 x1 y1 | live rates
 if (a[0] == "live")
 {
     var liveDir = Path.GetDirectoryName(Path.GetDirectoryName(file))!; // .../advisor/live/map/map.bin -> .../advisor/live
@@ -31,7 +32,8 @@ if (a[0] == "live")
     {
         case "region": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); q["layer"] = a.Count > 6 ? a[6] : "terrain"; break;
         case "cell": q["x"] = N(2); q["y"] = N(3); break;
-        case "buildings": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); break;
+        case "buildings": case "ports": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); break;
+        case "pipes": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); q["layer"] = a.Count > 6 ? a[6] : "gas"; break;
         case "find": q["what"] = a.Count > 2 ? a[2] : ""; if (a.Count > 4) { q["x"] = N(3); q["y"] = N(4); } break;
     }
     var id = Guid.NewGuid().ToString("N");

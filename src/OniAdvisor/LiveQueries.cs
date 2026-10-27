@@ -17,6 +17,9 @@ namespace OniAdvisor
     ///   {"kind":"region","x0":..,"y0":..,"x1":..,"y1":..,"layer":"terrain|gas|temp"}
     ///   {"kind":"cell","x":..,"y":..}
     ///   {"kind":"buildings","x0":..,"y0":..,"x1":..,"y1":..}
+    ///   {"kind":"pipes","x0":..,"y0":..,"x1":..,"y1":..,"layer":"gas|liquid|power|rail"}   network layout + contents
+    ///   {"kind":"ports","x0":..,"y0":..,"x1":..,"y1":..}  buildings' pipe/power ports and what reaches them
+    ///   {"kind":"rates"}                                   colony production/consumption per element
     ///   {"kind":"find","what":"coal","x":..,"y":..}        nearest known deposits
     ///   {"kind":"view"}                                     a fresh view.json
     /// Everything goes through MapMemory, so memory mode and the fog of war apply. tools/MapQuery's
@@ -66,8 +69,11 @@ namespace OniAdvisor
                 case "cell": return MapText.Cell(I("x"), I("y"));
                 case "buildings": return MapText.Buildings(I("x0"), I("y0"), I("x1"), I("y1"));
                 case "find": return MapText.Find((string)q["what"] ?? "", I("x", Grid.WidthInCells / 2), I("y", Grid.HeightInCells / 2));
+                case "pipes": return Networks.Map(I("x0"), I("y0"), I("x1"), I("y1"), ((string)q["layer"] ?? "gas").ToLowerInvariant());
+                case "ports": return Networks.Ports(I("x0"), I("y0"), I("x1"), I("y1"));
+                case "rates": return Networks.ColonyRates().ToString(Formatting.Indented);
                 case "view": return View().ToString(Formatting.Indented);
-                default: return "unknown query kind; use region, cell, buildings, find or view";
+                default: return "unknown query kind; use region, cell, buildings, pipes, ports, rates, find or view";
             }
         }
 

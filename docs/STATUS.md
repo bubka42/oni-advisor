@@ -54,8 +54,17 @@ Changes (companion + advisor CLAUDE.md only; no mod redeploy needed):
   without a stop reason).
 - Advisor `CLAUDE.md`: ONI numbers sheet (base game), "one conversation" rule, honest note that pipe/wire
   networks aren't exported yet.
-- Next: export pipe/wire/rail layers + contents and building rates (mod), fix room "0% known" and power
-  figures in the digest; then measure whether a stronger live model is fast enough.
+- Step 3 (mod, deployed, not yet seen running): `Networks.cs` — live queries `pipes` (gas/liquid/power/rail
+  layout with box glyphs + contents per pipe tile), `ports` (each building's pipe/power ports: connected?,
+  net/circuit id, contents), `rates` (colony production/consumption per element, incl. dupes' breathing;
+  also in `state.json` → `rates` and the digest); `buildings` lists conversions and wattage and skips
+  pipes/wires/tiles; `cell` shows pipes/wires on the tile; rooms without oxygen-overlay data report gas
+  types from the plain view (`gasTypes`); batteries show charging/draining. LiveFacts also fetches ports,
+  and the pipe/wire layer when that overlay is open or the question mentions it.
+- First things to check in game: `MapQuery live ports` around the electrolyzer/filter/generator (port cells
+  and "NOT CONNECTED" right?), `live pipes ... gas` glyphs match the overlay, `live rates` numbers,
+  `state.json` has no `meta.errors`.
+- Then: measure whether a stronger live model is fast enough.
 
 ## Third round (same evening) — installed, not yet seen running
 

@@ -50,8 +50,9 @@ under the **cursor** (element, gas, temperature, building, room), the **selected
 and a text map of ~40×20 tiles around the cursor. "Here", "this", "that spot" mean the cursor tile or the
 selection.
 
-In live mode the companion has already fetched the buildings (with status) and the gas map around the
-cursor and the selection, and put them in the prompt under "Fetched from the game just now". Hotkey and
+In live mode the companion has already fetched the buildings (with status and rates), their pipe/power
+ports and the gas map around the cursor and the selection — plus the pipe/wire layer when the matching
+overlay is open or the question is about it — under "Fetched from the game just now". Hotkey and
 sketch prompts come with the screenshot attached.
 
 **Don't say you can't see the map or don't have enough information about a place.** Ask the running game
@@ -62,14 +63,21 @@ dotnet <MapQuery.dll> live region x0 y0 x1 y1 [terrain|gas|temp]   (≤ 2400 til
 dotnet <MapQuery.dll> live cell x y                                  (element, mass, temp, germs, building + status, room)
 dotnet <MapQuery.dll> live buildings x0 y0 x1 y1                     (buildings with status lines)
 dotnet <MapQuery.dll> live find coal [x y]                           (known deposits, nearest first)
+dotnet <MapQuery.dll> live pipes x0 y0 x1 y1 [gas|liquid|power|rail] (network layout + what is in each pipe)
+dotnet <MapQuery.dll> live ports x0 y0 x1 y1                         (each building's pipe/power ports: connected? which net? contents)
+dotnet <MapQuery.dll> live rates                                     (colony production/consumption per element)
 dotnet <MapQuery.dll> live view                                      (refresh the view)
 ```
 In live mode keep it to one query at most; each costs a couple of seconds.
 
-**Not exported yet: pipes, wires, conveyor rails and what flows in them.** You see buildings and their
-status lines ("Pipe Blocked", "Empty Pipe", "No Power Wire Connected"), not the network itself. Reason
-from those statuses, and when the network layout matters, say exactly what to check ("open the gas
-overlay and follow the filter's output pipe"). Don't present guesses about pipe routes as facts.
+**Pipes, wires and rails.** `pipes` draws a network layer: box-drawing glyphs show how segments connect
+(up = the row above), then for gas/liquid an element letter and a fill digit (9 = a full packet: 1 kg gas,
+10 kg liquid; blank = empty pipe); for power a circuit letter. `ports` is usually the faster way to find a
+fault: it lists every input/output/filtered port with "NOT CONNECTED (no pipe)" / "NOT CONNECTED (no wire)",
+or the net/circuit id and what is in the pipe right there. Two ports are on the same line only if they share
+a net id. `buildings` now also shows what each building converts ("1 kg/s Water → 888 g/s Oxygen + 112 g/s
+Hydrogen; running") and its wattage. The colony summary has the production/consumption totals — use them
+for any "am I making enough X" question instead of estimating.
 
 ## One conversation
 

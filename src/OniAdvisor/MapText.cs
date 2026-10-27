@@ -103,6 +103,8 @@ namespace OniAdvisor
                 var st = Snapshot.Statuses(b, problemsOnly: false);
                 if (st.Count > 0) sb.Append(" [" + string.Join("; ", st.Select(s => (string)s)) + "]");
             }
+            string nets = Networks.AtCell(cell);
+            if (nets.Length > 0) sb.Append("; ").Append(nets);
             var room = Game.Instance.roomProber.GetCavityForCell(cell)?.room;
             if (room != null && room.roomType != null) sb.Append($"; room: {Strip(room.roomType.Name)}");
             return sb.ToString();
@@ -114,11 +116,12 @@ namespace OniAdvisor
             var lines = new List<string>();
             foreach (var bc in Components.BuildingCompletes.Items)
             {
-                if (bc == null) continue;
+                if (bc == null || Networks.IsNetworkPiece(bc)) continue; // pipes, wires and tiles: see the pipes query
                 var xy = Grid.CellToXY(Grid.PosToCell(bc));
                 if (xy.x < Math.Min(x0, x1) || xy.x > Math.Max(x0, x1) || xy.y < Math.Min(y0, y1) || xy.y > Math.Max(y0, y1)) continue;
                 var st = Snapshot.Statuses(bc.gameObject, problemsOnly: false);
-                lines.Add($"{Strip(bc.GetProperName())} @{xy.x},{xy.y}" + (st.Count > 0 ? ": " + string.Join("; ", st.Select(s => (string)s)) : ""));
+                string rates = Networks.Rates(bc.gameObject);
+                lines.Add($"{Strip(bc.GetProperName())} @{xy.x},{xy.y}" + (st.Count > 0 ? ": " + string.Join("; ", st.Select(s => (string)s)) : "") + (rates.Length > 0 ? " | " + rates : ""));
                 if (lines.Count >= 60) { lines.Add("…"); break; }
             }
             return lines.Count == 0 ? "no buildings there" : string.Join("\n", lines);

@@ -426,7 +426,7 @@ public sealed class MainForm : Form
             cts = new CancellationTokenSource();
             // Fetch what the question most likely needs first: the fast model answers from what is in the prompt.
             string view = ReadView();
-            string facts = view.StartsWith("{") ? await LiveFacts.FetchAsync(liveDir, view) : "";
+            string facts = view.StartsWith("{") ? await LiveFacts.FetchAsync(liveDir, view, text) : "";
             string? shot = trigger is "hotkey" or "plan" ? (string?)req?["screenshot"] : null;
             var reply = await live.AskAsync(BuildPrompt(trigger, text, req, view, facts), cts.Token, shot != null && File.Exists(shot) ? shot : null);
             status.Text = reply.Seconds is double s ? $"ready (last answer {s:0.0} s)" : "ready";
