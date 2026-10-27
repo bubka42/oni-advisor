@@ -1,7 +1,8 @@
 # ONI Advisor — notes for agents working on this repo
 
 Start by reading `docs/HANDOFF.md` (current state, what is untested, open issues, environment gotchas)
-and `docs/STATUS.md` (test results). `README.md` has the design goals and the user's preferences.
+and `docs/STATUS.md` (test results). `README.md` has the design goals; `docs/BACKGROUND.md` has the user's
+goals and preferences, the earlier screenshot-based phase, and how the design evolved.
 
 Key facts:
 - .NET SDK: `%USERPROFILE%\.dotnet\dotnet.exe` (not on PATH). Mod targets net48; tools target net8.
