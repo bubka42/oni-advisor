@@ -496,11 +496,20 @@ public sealed class MainForm : Form
             WriteStatus("idle", null);
             return;
         }
-        chat.Add("advisor", answer, cycle);
+        // Unasked tips start with their urgency: [critical] pauses the game, [urgent] = check soon, [later] = at leisure.
+        string? level = null;
+        if (trigger == "update")
+        {
+            var m = global::System.Text.RegularExpressions.Regex.Match(answer, @"^\s*\[(critical|urgent|later)\]\s*", global::System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            level = m.Success ? m.Groups[1].Value.ToLowerInvariant() : "later";
+            if (m.Success) answer = answer[m.Length..].Trim();
+            Tips.Add(liveDir, level, answer, cycle);
+        }
+        chat.Add(level != null ? "tip-" + level : "advisor", answer, cycle);
         chat.Stream("idle");
-        Append("Advisor", answer, Color.PaleGreen);
+        Append(level != null ? $"Tip ({level})" : "Advisor", answer, level == "critical" ? Color.Salmon : level == "urgent" ? Color.Orange : Color.PaleGreen);
         string spoken = Spoken(answer);
-        if (settings.Speak && trigger is not "autosave" and not "briefing") voice.Speak(spoken);
+        if (settings.Speak && trigger is not "autosave" and not "briefing" && level != "later") voice.Speak(spoken);
         LogAnswer(text ?? $"({trigger})", answer);
         convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", _ => "live" }, cycle,
                   text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "update" => "(nothing asked)", _ => "" }, answer);
@@ -523,7 +532,9 @@ public sealed class MainForm : Form
         bool fresh = watch.Poll();
         if (!fresh || settings.Proactive == "never" || advisor.Busy || !watch.HasEvents) return;
         var now = DateTime.UtcNow;
-        if ((now - lastPlayerUtc).TotalSeconds < 45 || (now - lastProactiveUtc).TotalSeconds < settings.ProactiveMinSeconds) return;
+        // Something serious (an alert, suffocation, starving …) may interrupt sooner than ordinary tips.
+        int minGap = watch.HasSerious ? Math.Min(30, settings.ProactiveMinSeconds) : settings.ProactiveMinSeconds;
+        if ((now - lastPlayerUtc).TotalSeconds < (watch.HasSerious ? 10 : 45) || (now - lastProactiveUtc).TotalSeconds < minGap) return;
         if (settings.Proactive == "serious" && !watch.HasSerious) return;
         if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(Path.Combine(liveDir, "view.json"))).TotalSeconds > 30) return; // game not running
         lastProactiveUtc = now;
@@ -569,7 +580,7 @@ public sealed class MainForm : Form
                 sb.AppendLine("The player pressed 'look at this'. Say what matters most about what they are looking at.");
                 break;
             case "update":
-                sb.AppendLine("Nothing was asked: this is a game update. If something above is worth telling the player now — a risk, a mistake, a consequence of what they just built, a good next step — say it briefly (it is read aloud), with marks if a place matters. Don't repeat what you already told them. Otherwise reply exactly: (silent)");
+                sb.AppendLine("Nothing was asked: this is a game update. If something above is worth telling the player now — a risk, a mistake, a consequence of what they just built, a good next step — give a tip: start with its urgency, [critical] (pauses the game: someone may die or something breaks within moments), [urgent] (check it as soon as convenient) or [later] (at leisure), then say it briefly (urgent and critical tips are read aloud), with marks if a place matters. Don't repeat what you already told them. Otherwise reply exactly: (silent)");
                 break;
         }
         if (text != null && trigger is "ask" or "chat") sb.AppendLine($"Player ({(via == "voice" ? "spoken" : "typed")}): {text}");

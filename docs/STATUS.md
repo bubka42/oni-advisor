@@ -57,6 +57,9 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   Installed model: `kokoro-int8-multi-lang-v1_1` (only 3 English voices: af_maple 0, af_sol 1, bf_vale 2;
   logs unknown-phoneme warnings). Better English: `kokoro-multi-lang-v1_0` (350 MB, af_heart = id 3) —
   not downloaded yet. Measured (warm, 4 threads): first audio ~2.4 s for a 15-word sentence, RTF ~0.7.
+- **Tips with urgency** (player request): unasked tips start with [critical]/[urgent]/[later]; the companion
+  writes `live/tips.json`; `TipBulb` hangs a bulb from the top of the screen in that colour (critical pauses
+  the game and opens the panel; urgent pulses; hover shows the tip; click opens the panel = seen).
 - Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
   keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
   `(silent)` handling, Kokoro audio device.

@@ -65,6 +65,7 @@ namespace OniAdvisor
             chatTime = streamTime = indexTime = default; // reload everything
             nextPoll = 0;
             if (chat) Focus();
+            TipBulb.AllSeen(); // the tips are in the chat
         }
 
         public static void Close()
@@ -167,6 +168,16 @@ namespace OniAdvisor
                     OniStyle.Fill(row, OniStyle.Row, false);
                     v.padding = new RectOffset(10, 10, 6, 8);
                     Text(row, "<color=#F182B7><b>ADVISOR</b></color>\n" + Rich(text), 15, OniStyle.Text);
+                    break;
+                case "tip-critical":
+                case "tip-urgent":
+                case "tip-later":
+                    string lvl = who.Substring(4);
+                    var tipColor = lvl == "critical" ? new Color(0.62f, 0.27f, 0.3f) : lvl == "urgent" ? new Color(0.62f, 0.45f, 0.25f) : OniStyle.Row;
+                    OniStyle.Fill(row, tipColor, false);
+                    v.padding = new RectOffset(10, 10, 6, 8);
+                    string tag = lvl == "critical" ? "<color=#FF8A80><b>CRITICAL</b></color>" : lvl == "urgent" ? "<color=#FFC069><b>CHECK SOON</b></color>" : "<color=#FFE680><b>TIP</b></color>";
+                    Text(row, tag + "\n" + Rich(text), 15, OniStyle.Text);
                     break;
                 case "thought":
                     v.padding = new RectOffset(14, 10, 1, 1);
