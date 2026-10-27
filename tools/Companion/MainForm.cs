@@ -21,6 +21,7 @@ public sealed class MainForm : Form
     CancellationTokenSource? cts;
     readonly SpeechInput speech;
     readonly LiveClaude live;
+    readonly ConversationLog convo;
 
     readonly RichTextBox log = new() { ReadOnly = true, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(24, 26, 30), ForeColor = Color.Gainsboro, Font = new Font("Segoe UI", 10f) };
     readonly TextBox input = new() { Multiline = true, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10f), AcceptsReturn = false };
@@ -42,6 +43,7 @@ public sealed class MainForm : Form
         claude = new ClaudeRunner(settings, advisorDir, dotnetDir);
         speech = new SpeechInput(settings.WhisperModel, settings.MicDevice);
         live = new LiveClaude(settings, advisorDir, dotnetDir);
+        convo = new ConversationLog(liveDir);
 
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96F, 96F);
@@ -422,7 +424,11 @@ public sealed class MainForm : Form
             status.Text = "advisor is thinking…";
             WriteStatus("thinking", null);
             cts = new CancellationTokenSource();
-            var reply = await live.AskAsync(BuildPrompt(trigger, text, req), cts.Token);
+            // Fetch what the question most likely needs first: the fast model answers from what is in the prompt.
+            string view = ReadView();
+            string facts = view.StartsWith("{") ? await LiveFacts.FetchAsync(liveDir, view) : "";
+            string? shot = trigger is "hotkey" or "plan" ? (string?)req?["screenshot"] : null;
+            var reply = await live.AskAsync(BuildPrompt(trigger, text, req, view, facts), cts.Token, shot != null && File.Exists(shot) ? shot : null);
             status.Text = reply.Seconds is double s ? $"ready (last answer {s:0.0} s)" : "ready";
             if (reply.Ok)
             {
@@ -432,6 +438,8 @@ public sealed class MainForm : Form
                 Append("Advisor", shown, Color.PaleGreen);
                 if (settings.Speak) voice.Speak(shown);
                 LogAnswer(text ?? $"({trigger})", shown);
+                convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", _ => "live" }, (int?)req?["cycle"] ?? ReadCycle(),
+                          text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", _ => "" }, shown);
                 WriteStatus("replied", shown);
                 if (m.Success)
                 {
@@ -451,7 +459,16 @@ public sealed class MainForm : Form
             var (trigger, text, req) = queue.Dequeue();
             status.Text = "preparing a briefing…";
             WriteStatus("thinking", null);
+            var briefingFile = Path.Combine(liveDir, "briefing", "briefing.json");
+            var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
             var reply = await claude.AskAsync(BuildPrompt(trigger, text, req), CancellationToken.None);
+            try
+            {
+                // Log the briefing itself, so live mode knows what it said.
+                if (File.Exists(briefingFile) && File.GetLastWriteTimeUtc(briefingFile) > before)
+                    convo.Add("briefing", ReadCycle(), text ?? (trigger == "autosave" ? "new cycle" : null), ConversationLog.Summarize(File.ReadAllText(briefingFile)));
+            }
+            catch { }
             status.Text = "ready";
             if (reply.Ok)
             {
@@ -462,7 +479,7 @@ public sealed class MainForm : Form
         }
     }
 
-    string BuildPrompt(string trigger, string? text, JsonObject? req)
+    string BuildPrompt(string trigger, string? text, JsonObject? req, string? view = null, string? facts = null)
     {
         var sb = new System.Text.StringBuilder();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
@@ -492,10 +509,14 @@ public sealed class MainForm : Form
         if (!briefing)
         {
             sb.AppendLine("Live mode: at most two short spoken sentences, no coordinates (draw a mark and say 'see the mark').");
-            sb.AppendLine("\"Here\"/\"this\" means the tile under the cursor or the selected object in the view below. Never say you can't see the map: if the view and summary aren't enough, query the game: dotnet \"" + MapQueryDll() + "\" live region|cell|buildings|find|view ... (fresh data, under a second).");
-            sb.AppendLine("Player's view: " + ReadView());
+            sb.AppendLine("Answer from the facts below (view, nearby buildings and gas, colony summary, recent conversation) and the ONI numbers in CLAUDE.md. \"Here\"/\"this\" = the cursor tile or the selection. If the facts don't cover the question, run ONE query rather than guess: dotnet \"" + MapQueryDll() + "\" live region|cell|buildings|find ... Stay consistent with the recent conversation, including briefings: build on it, and if you now think something said there was wrong, say so and why.");
+            if ((string?)req?["screenshot"] is not null && trigger is "hotkey" or "plan") sb.AppendLine("The screenshot attached is what the player sees right now.");
+            sb.AppendLine("Player's view: " + (view ?? ReadView()));
+            if (!string.IsNullOrWhiteSpace(facts)) sb.AppendLine("Fetched from the game just now:\n" + facts.TrimEnd());
             sb.AppendLine("Colony summary: " + ColonyDigest.Build(liveDir));
         }
+        string recent = convo.Recent(briefing ? 14 : 8, briefing ? 6000 : 3500);
+        if (recent.Length > 0) sb.AppendLine("Recent conversation with the player (live answers and briefings, oldest first):\n" + recent);
         if (text != null && !briefing) sb.AppendLine("Player: " + text);
         return sb.ToString();
     }

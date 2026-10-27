@@ -16,7 +16,8 @@ public sealed class LiveClaude : IDisposable
     readonly Settings settings;
     readonly string workDir, dotnetDir;
     Process? proc;
-    int turns;
+    volatile int assistantSeq;
+    int turns, sent, results; // results = turns finished, so a late event from an earlier turn never answers this one
     TaskCompletionSource<string>? pending;
     readonly object gate = new();
     public string? LastError { get; private set; }
@@ -56,7 +57,7 @@ public sealed class LiveClaude : IDisposable
         psi.Environment["PATH"] = dotnetDir + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? "");
         psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         proc = Process.Start(psi) ?? throw new InvalidOperationException("could not start claude");
-        turns = 0;
+        turns = 0; sent = 0; results = 0;
         var p = proc;
         _ = Task.Run(() => ReadLoop(p));
         _ = Task.Run(() => { try { p.StandardError.ReadToEnd(); } catch { } });
@@ -75,15 +76,21 @@ public sealed class LiveClaude : IDisposable
                 string type = (string?)j["type"] ?? "";
                 if (type == "assistant")
                 {
-                    // The answer = the first assistant message with text and no tool call in it.
+                    // The answer = a text-only assistant message that nothing follows within a short grace period.
+                    // Claude Code streams each content block as its own message without a stop reason, so a
+                    // "Let me check…" line is followed by its tool call; any later message cancels the candidate.
                     var content = j["message"]?["content"]?.AsArray();
-                    if (content == null) continue;
+                    if (content == null || results != sent - 1) continue;
+                    int seq = ++assistantSeq;
                     bool toolUse = content.Any(c => (string?)c?["type"] == "tool_use");
-                    var text = string.Concat(content.Where(c => (string?)c?["type"] == "text").Select(c => (string?)c?["text"]));
-                    if (!toolUse && text.Trim().Length > 0) Complete(text.Trim());
+                    var text = string.Concat(content.Where(c => (string?)c?["type"] == "text").Select(c => (string?)c?["text"])).Trim();
+                    if (!toolUse && text.Length > 0)
+                        _ = Task.Delay(600).ContinueWith(_ => { if (assistantSeq == seq) Complete(text); });
                 }
                 else if (type == "result")
                 {
+                    ++assistantSeq; // the turn is over: the result text wins over a pending candidate
+                    if (++results != sent) continue;
                     if ((bool?)j["is_error"] == true) Complete(null, (string?)j["result"] ?? "error");
                     else Complete((string?)j["result"] ?? "");
                 }
@@ -102,15 +109,21 @@ public sealed class LiveClaude : IDisposable
         else { LastError = error; tcs.TrySetException(new Exception(error)); }
     }
 
-    public async Task<ClaudeRunner.Reply> AskAsync(string prompt, CancellationToken ct)
+    /// <param name="imagePath">a screenshot shown to the model directly (left to itself, it never opened them)</param>
+    public async Task<ClaudeRunner.Reply> AskAsync(string prompt, CancellationToken ct, string? imagePath = null)
     {
         var sw = Stopwatch.StartNew();
         try
         {
             EnsureProcess();
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (gate) pending = tcs;
-            var msg = new JsonObject { ["type"] = "user", ["message"] = new JsonObject { ["role"] = "user", ["content"] = prompt } };
+            lock (gate) { pending = tcs; sent++; }
+            JsonNode content = prompt;
+            if (imagePath != null && Jpeg(imagePath) is { } jpeg)
+                content = new JsonArray(
+                    new JsonObject { ["type"] = "image", ["source"] = new JsonObject { ["type"] = "base64", ["media_type"] = "image/jpeg", ["data"] = Convert.ToBase64String(jpeg) } },
+                    new JsonObject { ["type"] = "text", ["text"] = prompt });
+            var msg = new JsonObject { ["type"] = "user", ["message"] = new JsonObject { ["role"] = "user", ["content"] = content } };
             await proc!.StandardInput.WriteLineAsync(msg.ToJsonString());
             await proc.StandardInput.FlushAsync();
             turns++;
@@ -126,6 +139,24 @@ public sealed class LiveClaude : IDisposable
         }
         catch (TaskCanceledException) { Stop(); return new ClaudeRunner.Reply(false, "", null, ct.IsCancellationRequested ? "cancelled" : "timed out"); }
         catch (Exception e) { return new ClaudeRunner.Reply(false, "", null, e.Message); }
+    }
+
+    /// <summary>The screenshot scaled to at most 1568 px on the long side, as JPEG (the model downsizes to that anyway).</summary>
+    static byte[]? Jpeg(string path)
+    {
+        try
+        {
+            using var src = Image.FromFile(path);
+            double scale = Math.Min(1.0, 1568.0 / Math.Max(src.Width, src.Height));
+            using var bmp = new Bitmap(src, (int)(src.Width * scale), (int)(src.Height * scale));
+            using var ms = new MemoryStream();
+            var codec = System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
+            using var ps = new System.Drawing.Imaging.EncoderParameters(1);
+            ps.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 80L);
+            bmp.Save(ms, codec, ps);
+            return ms.ToArray();
+        }
+        catch { return null; }
     }
 
     public void Stop()

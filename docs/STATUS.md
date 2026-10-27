@@ -35,6 +35,28 @@ against the installed game build (U59-744825) by reading the game's assemblies; 
   `live/advisor-status.json` from the companion.
 - Not yet checked: pod.json, delegation, companion auto-reaction to requests (blocked by the folder bug).
 
+## Advice quality fixes (2026-10-27, after reading the player's real exchanges) — built, not yet run in game
+
+Findings from the advisor's own transcripts (`~/.claude/projects/C--Users-extre-OneDrive-Documents-Klei-OxygenNotIncluded-advisor/`):
+live mode made **zero** tool calls in 19 answers (never queried, never opened hotkey screenshots); live and
+briefing sessions never saw each other (live denied a briefing's claim); pipes/wires aren't exported; the
+briefing used a wrong electrolyzer rate.
+
+Changes (companion + advisor CLAUDE.md only; no mod redeploy needed):
+- `ConversationLog` → `live/conversation.json`: live answers, look/pod/sketch answers and briefing summaries;
+  the recent entries go into every prompt of both modes. Seeded from `advisor-log.json` + the last briefing.
+- `LiveFacts`: before each live question the companion queries the game itself (buildings with status and
+  gas map around the cursor and the selection) and puts the answers in the prompt.
+- Hotkey/sketch screenshots are attached to the live prompt as an image (JPEG ≤1568 px). Verified with
+  headless Claude Code: ~3 s, it described the hydrogen-filled barracks from the image.
+- `LiveClaude`: turn counting so a late event from an earlier turn can't answer the next question; a
+  text-only message is accepted after 600 ms unless a tool call follows (Claude Code streams blocks
+  without a stop reason).
+- Advisor `CLAUDE.md`: ONI numbers sheet (base game), "one conversation" rule, honest note that pipe/wire
+  networks aren't exported yet.
+- Next: export pipe/wire/rail layers + contents and building rates (mod), fix room "0% known" and power
+  figures in the digest; then measure whether a stronger live model is fast enough.
+
 ## Third round (same evening) — installed, not yet seen running
 
 Live mode (short spoken answers, persistent fast channel, colony digest + player view in each prompt,
