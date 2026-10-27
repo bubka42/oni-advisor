@@ -11,6 +11,14 @@ static class Program
     {
         ApplicationConfiguration.Initialize();
 
+        // One companion at a time (two would both answer every request from the game).
+        using var single = new Mutex(true, "OniAdvisorCompanion-single-instance", out bool first);
+        if (!first)
+        {
+            MessageBox.Show("The ONI Advisor companion is already running (Ctrl+Shift+C in the game shows it).", "ONI Advisor");
+            return;
+        }
+
         string advisorDir = args.Length > 0 ? args[0] : DefaultAdvisorDir();
         Directory.CreateDirectory(advisorDir);
 

@@ -160,7 +160,7 @@ namespace OniAdvisor
                     sb.Append(it.Status).Append(it.Built).Append(it.Ordered).Append('|');
                 }
             }
-            string key = sb + "/" + focus + "/" + Overlays.ShowProjects;
+            string key = sb + "/" + focus + "/" + Overlays.ShowProjects + "/" + forcedId;
             if (key != lastDrawKey)
             {
                 lastDrawKey = key;
@@ -299,6 +299,16 @@ namespace OniAdvisor
 
         // ------------------------------------------------------------------ drawing
 
+        static string forcedId; // briefing step showing one project
+
+        /// <summary>Shows just this project (even with the overlay off) until called with null.</summary>
+        public static void ForceShow(string projectId)
+        {
+            forcedId = string.IsNullOrEmpty(projectId) ? null : projectId;
+            lastDrawKey = "";
+            Refresh();
+        }
+
         public static string CycleFocus()
         {
             focus = projects.Count == 0 ? -1 : focus + 1 >= projects.Count ? -1 : focus + 1;
@@ -311,10 +321,11 @@ namespace OniAdvisor
         static void Draw()
         {
             layer.Clear();
-            layer.Visible = Overlays.ShowProjects;
+            layer.Visible = Overlays.ShowProjects || forcedId != null;
             for (int pi = 0; pi < projects.Count; pi++)
             {
-                if (focus >= 0 && pi != focus) continue;
+                if (forcedId != null) { if (!string.Equals(projects[pi].Id, forcedId, StringComparison.OrdinalIgnoreCase)) continue; }
+                else if (focus >= 0 && pi != focus) continue;
                 var p = projects[pi];
                 int n = 0;
                 foreach (var it in p.Items)

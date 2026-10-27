@@ -18,6 +18,43 @@ if (fi >= 0) { file = a[fi + 1]; a.RemoveRange(fi, 2); }
 if (a.Count == 0) { Console.WriteLine("commands: summary | region x0 y0 x1 y1 [elem|gas|temp|germs|age|build] | cell x y | find <element> | selftest"); return 1; }
 if (a[0] == "selftest") { file = SelfTest.Write(); Console.WriteLine("synthetic map written to " + file); }
 
+// "live" asks the running game (fresh data, memory mode respected) instead of reading map.bin:
+//   live region x0 y0 x1 y1 [terrain|gas|temp] | live cell x y | live buildings x0 y0 x1 y1 | live find <what> [x y] | live view
+if (a[0] == "live")
+{
+    var liveDir = Path.GetDirectoryName(Path.GetDirectoryName(file))!; // .../advisor/live/map/map.bin -> .../advisor/live
+    var qdir = Path.Combine(liveDir, "queries");
+    Directory.CreateDirectory(qdir);
+    var q = new System.Text.Json.Nodes.JsonObject { ["kind"] = a.Count > 1 ? a[1] : "view" };
+    int N(int i) => a.Count > i && int.TryParse(a[i], out var v) ? v : 0;
+    switch (q["kind"]!.ToString())
+    {
+        case "region": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); q["layer"] = a.Count > 6 ? a[6] : "terrain"; break;
+        case "cell": q["x"] = N(2); q["y"] = N(3); break;
+        case "buildings": q["x0"] = N(2); q["y0"] = N(3); q["x1"] = N(4); q["y1"] = N(5); break;
+        case "find": q["what"] = a.Count > 2 ? a[2] : ""; if (a.Count > 4) { q["x"] = N(3); q["y"] = N(4); } break;
+    }
+    var id = Guid.NewGuid().ToString("N");
+    var req = Path.Combine(qdir, $"req-{id}.json");
+    File.WriteAllText(req + ".tmp", q.ToJsonString());
+    File.Move(req + ".tmp", req);
+    var res = Path.Combine(qdir, $"res-{id}.txt");
+    for (int i = 0; i < 50; i++) // up to 5 s
+    {
+        if (File.Exists(res))
+        {
+            Thread.Sleep(30);
+            Console.WriteLine(File.ReadAllText(res));
+            try { File.Delete(res); } catch { }
+            return 0;
+        }
+        Thread.Sleep(100);
+    }
+    try { File.Delete(req); } catch { }
+    Console.WriteLine("no answer from the game (is ONI running with the OniAdvisor mod and a colony loaded?)");
+    return 2;
+}
+
 var map = MapFile.Load(file);
 switch (a[0])
 {

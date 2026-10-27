@@ -35,6 +35,14 @@ against the installed game build (U59-744825) by reading the game's assemblies; 
   `live/advisor-status.json` from the companion.
 - Not yet checked: pod.json, delegation, companion auto-reaction to requests (blocked by the folder bug).
 
+## Third round (same evening) — installed, not yet seen running
+
+Live mode (short spoken answers, persistent fast channel, colony digest + player view in each prompt,
+live map queries, escalation to briefings), briefing mode (step-by-step panel with voice, camera, marks,
+projects), ONI styling, Ctrl+Shift+Q voice toggle. The game then failed to start twice with "another
+instance is already running" / `Can't init Steam distribution platform` — most likely Steam state, not
+the mod. See `docs/HANDOFF.md`.
+
 ## Second session (same evening)
 
 - Folder fix confirmed: Ctrl+Shift+A → companion reacted on its own and produced a real briefing.

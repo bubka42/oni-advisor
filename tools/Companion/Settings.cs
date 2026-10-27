@@ -14,10 +14,13 @@ public sealed class Settings
     public bool AutoPodPick { get; set; } = true;
     public bool AutoReviewPlan { get; set; } = true;
     public bool AutoLookOnHotkey { get; set; } = true;
-    public bool Speak { get; set; } = false;
+    public bool Speak { get; set; } = false;          // read live answers aloud
+    public bool SpeakBriefings { get; set; } = true;  // read briefing steps aloud (the game waits for each)
     public bool VoiceAutoSend { get; set; } = false;
     public string? WhisperModel { get; set; }   // empty = %USERPROFILE%\.oni-advisor\models\ggml-small.en.bin
     public string? MicDevice { get; set; }      // part of the microphone's name; empty = "Microphone Array"   // false: dictated text goes into the input box to check first
+    public string? LiveModel { get; set; } = "sonnet";  // live answers: sonnet (~2.5 s) or haiku (~1.8 s)
+    public string? LiveEffort { get; set; } = "low";
     public bool TopMost { get; set; } = true;
     public int TimeoutSeconds { get; set; } = 300;
 

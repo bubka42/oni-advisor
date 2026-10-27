@@ -1,0 +1,340 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace OniAdvisor
+{
+    /// <summary>
+    /// Briefing mode. The advisor writes live/briefing/briefing.json as steps (say / text / focus / zoom /
+    /// marks / project). Ctrl+Shift+B (or the badge prompt) opens an ONI-style panel, pauses the game and
+    /// plays the steps: the camera moves to each step's focus, its marks and project are shown, and the
+    /// companion reads its "say" aloud. When the companion reports a step finished
+    /// (live/briefing/playback-done.json), the next step starts. Back / Next / Close buttons; closing unpauses.
+    /// The panel also lists recent questions and answers (live/advisor-log.json, written by the companion).
+    /// UNTESTED IN GAME.
+    /// </summary>
+    internal static class Briefing
+    {
+        sealed class Step
+        {
+            public string Title, Say, Text, Zoom, Project;
+            public int[] Focus;
+            public List<Mark> Marks = new List<Mark>();
+        }
+
+        static string id, title;
+        static int cycle;
+        static readonly List<Step> steps = new List<Step>();
+        static System.DateTime fileTime, doneTime;
+        static bool unseen;
+
+        static bool open, pausedByUs;
+        static int current;
+        static float advanceAt = -1f;
+
+        static readonly MarkRenderer stepLayer = new MarkRenderer("briefing");
+        static RectTransform panel, list;
+        static TextMeshProUGUI headerText, footerText;
+
+        static string Dir => Paths.Sub("briefing");
+        static string BriefingFile => Path.Combine(Dir, "briefing.json");
+        static string PlaybackFile => Path.Combine(Dir, "playback.json");
+        static string DoneFile => Path.Combine(Dir, "playback-done.json");
+
+        public static bool IsOpen => open;
+
+        // ------------------------------------------------------------------ polling
+
+        /// <summary>About once a second: notice a new briefing, and the companion finishing a spoken step.</summary>
+        public static void Poll()
+        {
+            try
+            {
+                if (File.Exists(BriefingFile))
+                {
+                    var t = File.GetLastWriteTimeUtc(BriefingFile);
+                    if (t != fileTime && (System.DateTime.UtcNow - t).TotalMilliseconds > 500 && Load())
+                    {
+                        bool first = fileTime == default;
+                        fileTime = t;
+                        if (!first || (System.DateTime.UtcNow - t).TotalMinutes < 2)
+                        {
+                            unseen = true;
+                            AdvisorHud.Show($"Briefing ready ({steps.Count} steps): press Ctrl+Shift+B", 6f);
+                        }
+                        if (open) { current = 0; Rebuild(); PlayStep(); }
+                    }
+                }
+                if (open && File.Exists(DoneFile))
+                {
+                    var t = File.GetLastWriteTimeUtc(DoneFile);
+                    if (t != doneTime)
+                    {
+                        doneTime = t;
+                        var o = JObject.Parse(File.ReadAllText(DoneFile));
+                        if ((string)o["id"] == id && (int?)o["step"] == current && current < steps.Count - 1)
+                            advanceAt = Time.unscaledTime + 0.8f; // short breath between steps
+                    }
+                }
+            }
+            catch (Exception e) { Log.Warn("briefing poll: " + e.Message); }
+        }
+
+        public static bool HasUnseen => unseen;
+
+        /// <summary>Every frame: timed auto-advance.</summary>
+        public static void Tick(float now)
+        {
+            if (open && advanceAt >= 0f && now >= advanceAt)
+            {
+                advanceAt = -1f;
+                Go(current + 1);
+            }
+        }
+
+        static bool Load()
+        {
+            var root = JObject.Parse(File.ReadAllText(BriefingFile));
+            var newSteps = new List<Step>();
+            foreach (var s in root["steps"] ?? new JArray())
+            {
+                var step = new Step
+                {
+                    Title = (string)s["title"],
+                    Say = (string)s["say"],
+                    Text = (string)s["text"],
+                    Zoom = ((string)s["zoom"] ?? "base").ToLowerInvariant(),
+                    Project = (string)s["project"],
+                };
+                if (s["focus"] is JArray f && f.Count >= 2) step.Focus = new[] { (int)f[0], (int)f[1] };
+                foreach (var m in s["marks"] ?? new JArray()) step.Marks.Add(Mark.FromJson(m));
+                newSteps.Add(step);
+            }
+            if (newSteps.Count == 0) return false;
+            steps.Clear();
+            steps.AddRange(newSteps);
+            id = (string)root["id"] ?? File.GetLastWriteTimeUtc(BriefingFile).Ticks.ToString();
+            title = (string)root["title"] ?? "Briefing";
+            cycle = (int?)root["cycle"] ?? 0;
+            return true;
+        }
+
+        // ------------------------------------------------------------------ open / close / steps
+
+        /// <summary>Ctrl+Shift+B: open the latest briefing (or ask for one if there is none), or close.</summary>
+        public static void Toggle()
+        {
+            if (open) { Close(); return; }
+            if (steps.Count == 0)
+            {
+                AdvisorHud.Show("No briefing yet: asking the advisor for one…", 4f);
+                AdvisorRunner.Instance?.RequestBriefing();
+                return;
+            }
+            Open();
+        }
+
+        static void Open()
+        {
+            open = true;
+            unseen = false;
+            try
+            {
+                var speed = SpeedControlScreen.Instance;
+                if (speed != null && !speed.IsPaused) { speed.Pause(false, false); pausedByUs = true; }
+            }
+            catch { }
+            BuildPanel();
+            panel.gameObject.SetActive(true);
+            current = 0;
+            Rebuild();
+            PlayStep();
+        }
+
+        public static void Close()
+        {
+            if (!open) return;
+            open = false;
+            advanceAt = -1f;
+            stepLayer.Clear();
+            ProjectStore.ForceShow(null);
+            WritePlayback(-1); // tells the companion to stop speaking
+            if (panel != null) panel.gameObject.SetActive(false);
+            if (pausedByUs)
+            {
+                try { SpeedControlScreen.Instance?.Unpause(false); } catch { }
+                pausedByUs = false;
+            }
+        }
+
+        static void Go(int step)
+        {
+            if (steps.Count == 0) return;
+            current = Mathf.Clamp(step, 0, steps.Count - 1);
+            advanceAt = -1f;
+            Rebuild();
+            PlayStep();
+        }
+
+        static void PlayStep()
+        {
+            var s = steps[current];
+            stepLayer.Clear();
+            stepLayer.Visible = true;
+            PlanMarks.DrawAdvisorStyle(stepLayer, s.Marks);
+            ProjectStore.ForceShow(s.Project);
+            if (s.Focus != null)
+            {
+                try
+                {
+                    int cell = Grid.XYToCell(s.Focus[0], s.Focus[1]);
+                    var pos = Grid.CellToPosCCC(cell, Grid.SceneLayer.Background);
+                    float size = s.Zoom == "near" ? 9f : s.Zoom == "wide" ? 26f : 15f;
+                    CameraController.Instance?.SetTargetPos(pos, size, false);
+                }
+                catch (Exception e) { Log.Warn("briefing camera: " + e.Message); }
+            }
+            WritePlayback(current);
+        }
+
+        static void WritePlayback(int step)
+        {
+            try
+            {
+                var o = new JObject { ["id"] = id, ["step"] = step, ["say"] = step >= 0 && step < steps.Count ? steps[step].Say : null, ["utc"] = System.DateTime.UtcNow.ToString("o") };
+                Paths.WriteAtomic(PlaybackFile, o.ToString(Formatting.None));
+            }
+            catch (Exception e) { Log.Warn("briefing playback write: " + e.Message); }
+        }
+
+        // ------------------------------------------------------------------ panel
+
+        static void BuildPanel()
+        {
+            if (panel != null || AdvisorHud.Canvas == null) return;
+            panel = OniStyle.Rect("briefing-panel", AdvisorHud.Canvas);
+            panel.anchorMin = panel.anchorMax = new Vector2(1f, 0.5f);
+            panel.pivot = new Vector2(1f, 0.5f);
+            panel.anchoredPosition = new Vector2(-16, 20);
+            panel.sizeDelta = new Vector2(470, 760);
+            OniStyle.Fill(panel, OniStyle.Panel, true); // blocks clicks to the world behind the panel
+
+            // Pink header bar with the title.
+            var header = OniStyle.Rect("header", panel);
+            header.anchorMin = new Vector2(0, 1); header.anchorMax = new Vector2(1, 1);
+            header.pivot = new Vector2(0.5f, 1); header.sizeDelta = new Vector2(0, 40); header.anchoredPosition = Vector2.zero;
+            OniStyle.Fill(header, OniStyle.Header, true);
+            var ht = OniStyle.Rect("title", header);
+            OniStyle.Stretch(ht, 14, 4);
+            headerText = OniStyle.Label(ht, "ADVISOR BRIEFING", 20, header: true, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+
+            // Scrollable step list.
+            var view = OniStyle.Rect("view", panel);
+            view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one;
+            view.offsetMin = new Vector2(10, 84); view.offsetMax = new Vector2(-10, -48);
+            OniStyle.Fill(view, OniStyle.PanelDark, true);
+            view.gameObject.AddComponent<RectMask2D>();
+            list = OniStyle.Rect("list", view);
+            list.anchorMin = new Vector2(0, 1); list.anchorMax = new Vector2(1, 1); list.pivot = new Vector2(0.5f, 1);
+            list.anchoredPosition = Vector2.zero; list.sizeDelta = Vector2.zero;
+            var vlg = list.gameObject.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(8, 8, 8, 8); vlg.spacing = 6;
+            vlg.childControlHeight = true; vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
+            list.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var scroll = view.gameObject.AddComponent<ScrollRect>();
+            scroll.content = list; scroll.viewport = view; scroll.horizontal = false; scroll.vertical = true; scroll.scrollSensitivity = 30;
+
+            // Buttons and a hint line.
+            var bar = OniStyle.Rect("buttons", panel);
+            bar.anchorMin = new Vector2(0, 0); bar.anchorMax = new Vector2(1, 0); bar.pivot = new Vector2(0.5f, 0);
+            bar.sizeDelta = new Vector2(-20, 34); bar.anchoredPosition = new Vector2(0, 40);
+            var hlg = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            hlg.spacing = 8; hlg.childAlignment = TextAnchor.MiddleCenter; hlg.childForceExpandWidth = false; hlg.childControlWidth = true; hlg.childControlHeight = true;
+            OniStyle.MakeButton(bar, "◀ BACK", () => Go(current - 1), 100);
+            OniStyle.MakeButton(bar, "NEXT ▶", () => Go(current + 1), 100);
+            OniStyle.MakeButton(bar, "NEW", () => { AdvisorHud.Show("Asking the advisor for a new briefing…", 3f); AdvisorRunner.Instance?.RequestBriefing(); }, 80);
+            OniStyle.MakeButton(bar, "CLOSE", Close, 100);
+            var ft = OniStyle.Rect("footer", panel);
+            ft.anchorMin = new Vector2(0, 0); ft.anchorMax = new Vector2(1, 0); ft.pivot = new Vector2(0.5f, 0);
+            ft.sizeDelta = new Vector2(-24, 30); ft.anchoredPosition = new Vector2(0, 6);
+            footerText = OniStyle.Label(ft, "", 13, color: OniStyle.TextMuted, align: TextAlignmentOptions.Midline, wrap: false);
+        }
+
+        static void Rebuild()
+        {
+            if (panel == null || list == null) return;
+            headerText.text = $"ADVISOR BRIEFING · CYCLE {cycle}" + (string.IsNullOrEmpty(title) ? "" : "");
+            for (int i = list.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(list.GetChild(i).gameObject);
+
+            for (int i = 0; i < steps.Count; i++)
+            {
+                var s = steps[i];
+                bool active = i == current;
+                var row = OniStyle.Rect("step" + i, list);
+                OniStyle.Fill(row, active ? OniStyle.RowActive : OniStyle.Row, false);
+                var rv = row.gameObject.AddComponent<VerticalLayoutGroup>();
+                rv.padding = new RectOffset(10, 10, 6, 8); rv.spacing = 2;
+                rv.childControlHeight = true; rv.childControlWidth = true; rv.childForceExpandHeight = false;
+                Add(row, $"{i + 1}. {(s.Title ?? "").ToUpperInvariant()}", 16, header: true, color: active ? Color.white : OniStyle.TextMuted);
+                if (!string.IsNullOrEmpty(s.Say)) Add(row, s.Say, 15);
+                if (!string.IsNullOrEmpty(s.Text) && active) Add(row, s.Text, 13, color: OniStyle.TextMuted);
+            }
+
+            var answers = RecentAnswers();
+            if (answers.Count > 0)
+            {
+                var head = OniStyle.Rect("answers-head", list);
+                Add(head, "RECENT ANSWERS", 15, header: true, color: OniStyle.HeaderLight);
+                head.gameObject.AddComponent<VerticalLayoutGroup>().childControlHeight = true;
+                foreach (var (q, a) in answers)
+                {
+                    var row = OniStyle.Rect("answer", list);
+                    OniStyle.Fill(row, OniStyle.Row, false);
+                    var rv = row.gameObject.AddComponent<VerticalLayoutGroup>();
+                    rv.padding = new RectOffset(10, 10, 4, 6); rv.childControlHeight = true; rv.childControlWidth = true; rv.childForceExpandHeight = false;
+                    if (!string.IsNullOrEmpty(q)) Add(row, "You: " + q, 13, color: OniStyle.TextMuted);
+                    Add(row, a, 14);
+                }
+            }
+            footerText.text = steps.Count > 0 ? $"Step {current + 1} of {steps.Count} · game paused · Ctrl+Shift+B closes" : "";
+        }
+
+        static void Add(RectTransform parent, string text, float size, bool header = false, Color? color = null)
+        {
+            var rt = OniStyle.Rect("text", parent);
+            OniStyle.Label(rt, text, size, header: header, color: color);
+        }
+
+        /// <summary>Last few live answers, newest first, from live/advisor-log.json (written by the companion).</summary>
+        static List<(string q, string a)> RecentAnswers()
+        {
+            var result = new List<(string, string)>();
+            try
+            {
+                var path = Path.Combine(Paths.LiveDir, "advisor-log.json");
+                if (!File.Exists(path)) return result;
+                foreach (var e in JArray.Parse(File.ReadAllText(path)).Reverse().Take(5))
+                    result.Add(((string)e["q"], (string)e["a"]));
+            }
+            catch { }
+            return result;
+        }
+
+        public static void Destroy()
+        {
+            if (open) Close();
+            stepLayer.Clear();
+            if (panel != null) UnityEngine.Object.Destroy(panel.gameObject);
+            panel = null; list = null;
+            steps.Clear();
+            fileTime = default; doneTime = default; unseen = false;
+        }
+    }
+}

@@ -43,7 +43,26 @@ enabled speech) and you can draw on the player's map.
 | `../config.json` | help levels, delegation permissions, standing rules |
 | `../<colony>-plan.md` | your running colony plan; keep it updated (goals, forecast, decisions) |
 
-## MapQuery
+## What the player is looking at, and asking the game
+
+Every live prompt includes the **player's view** (`live/view.json`): visible area, active overlay, the tile
+under the **cursor** (element, gas, temperature, building, room), the **selected** object with its status,
+and a text map of ~40×20 tiles around the cursor. "Here", "this", "that spot" mean the cursor tile or the
+selection.
+
+**Never say you can't see the map or don't have enough information about a place.** Ask the running game
+instead — fresh data in well under a second, with memory mode and the fog of war applied:
+
+```
+dotnet <MapQuery.dll> live region x0 y0 x1 y1 [terrain|gas|temp]   (≤ 2400 tiles; rows top to bottom)
+dotnet <MapQuery.dll> live cell x y                                  (element, mass, temp, germs, building + status, room)
+dotnet <MapQuery.dll> live buildings x0 y0 x1 y1                     (buildings with status lines)
+dotnet <MapQuery.dll> live find coal [x y]                           (known deposits, nearest first)
+dotnet <MapQuery.dll> live view                                      (refresh the view)
+```
+In live mode keep it to one or two queries; each costs a couple of seconds.
+
+## MapQuery (saved map, no game needed)
 
 ```
 dotnet <repo>/tools/MapQuery/bin/Release/net8.0/MapQuery.dll summary
@@ -93,10 +112,43 @@ you would do instead.
 
 ## Answer style
 
-- The prompt says what triggered it: `autosave` (cycle briefing), `pod` (pick one option), `plan`
-  (review the player's marks), `hotkey` (they want you to look now), or a typed/spoken question.
-- Briefing format: **Now** (urgent, with locations) · **Next** (coming problems, backlog blockers) ·
-  **Long term** (milestones, plan check). Skip empty sections. Keep it under ~150 words unless asked.
-- Pod picks: one recommendation with a one-line reason per option.
-- Use tile coordinates when pointing at things, and draw marks when a location matters.
+The player is playing while you answer, and your replies are read aloud. Every prompt starts with
+`[mode: live]` or `[mode: briefing]`.
+
+### Live mode (questions, look requests, pod picks, sketch reviews)
+
+- **At most two short sentences, under ~35 words**, written to be spoken: "Sure, but leave a tile free
+  on the right for a door." No headings, lists, bold, or preamble.
+- **Never put coordinates or numbers-heavy detail in the reply.** If a place matters, draw it as an advisor
+  mark (`live/plan/advisor-marks.json`) and say "see the mark".
+- **If there is no honest short answer** (a design question, a trade-off, several steps), say so in one
+  spoken sentence and hand it to briefing mode by ending your reply with the marker
+  `[[briefing: <topic in a few words>]]` — e.g. "That needs a proper look; I'll prepare a briefing on it.
+  [[briefing: power layout for the new generator]]". The companion strips the marker and starts a briefing
+  focused on the question; the player opens it with Ctrl+Shift+B when ready. Don't escalate questions that
+  a sentence can answer.
+- Pod picks: "Take Ari — a strong researcher." plus at most one sentence on why not the others.
+- Sketch reviews: answer about their marks (#1, #2 …) in one or two sentences; draw corrections as marks.
+
+### Briefing mode (cycle briefings and "brief me")
+
+Write the briefing to `live/briefing/briefing.json` (replace the whole file); the game plays it step by
+step: it pauses, moves the camera, shows each step's marks/project, and reads each `say` aloud.
+
+```json
+{ "id": "c19-a", "cycle": 19, "title": "Cycle 19",
+  "steps": [
+    { "title": "Hydrogen in the barracks",
+      "say": "Hydrogen is still pooling above the cots. The new airflow tiles help, but add a gas filter so the pump never chokes on oxygen.",
+      "text": "Optional extra detail for the on-screen panel (not read aloud). Coordinates are fine here.",
+      "focus": [130, 200], "zoom": "near",
+      "marks": [ { "kind": "area", "x0": 120, "y0": 199, "x1": 150, "y1": 201, "label": "hydrogen" } ],
+      "project": "h2" } ] }
+```
+
+- 2–5 steps, most urgent first: Now → Next → Long term. Skip what doesn't matter this cycle.
+- `say`: one or two spoken sentences, no coordinates. `text`: optional detail for reading.
+- `focus` [x, y] centres the camera (optional), `zoom`: `near` | `base` | `wide`. `marks` are shown only
+  during that step. `project` (an id from `projects.json`) shows that project's ghost during the step.
+- Your chat reply in briefing mode is just one sentence: what the briefing is about.
 - Update `../<colony>-plan.md` when goals or decisions change.

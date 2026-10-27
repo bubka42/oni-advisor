@@ -26,7 +26,7 @@ public sealed class ClaudeRunner
 
     public bool Busy => current != null;
 
-    public sealed record Reply(bool Ok, string Text, double? CostUsd, string? Error);
+    public sealed record Reply(bool Ok, string Text, double? CostUsd, string? Error) { public double? Seconds { get; init; } }
 
     public static string? FindClaude(string? configured)
     {

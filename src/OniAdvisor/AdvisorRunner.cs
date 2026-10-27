@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -66,6 +66,8 @@ namespace OniAdvisor
             Guard("memory tick", () => MapMemory.Current?.Tick(now));
             Guard("hud", AdvisorHud.Tick);
             Guard("overlay", () => Overlays.Tick(now));
+            Guard("briefing", () => Briefing.Tick(now));
+            Guard("live queries", () => LiveQueries.Tick(now));
 
             if (now >= nextMemorySave)
             {
@@ -87,6 +89,7 @@ namespace OniAdvisor
                 Guard("projects", ProjectStore.Poll);
                 Guard("commands", Commands.Poll);
                 Guard("advisor status", AdvisorHud.PollStatus);
+                Guard("briefing poll", Briefing.Poll);
             }
 
             if (now >= nextRules)
@@ -117,6 +120,8 @@ namespace OniAdvisor
             if (Input.GetKeyDown(KeyCode.A)) { AdvisorHud.Show("Sent to the advisor: snapshot, screenshot and maps"); Export("hotkey", screenshot: true, request: true); }
             if (Input.GetKeyDown(KeyCode.V) && !talking) { talking = true; WriteRequest("voice-start", null); }
             if (Input.GetKeyDown(KeyCode.C)) WriteRequest("companion", null);
+            if (Input.GetKeyDown(KeyCode.B)) Guard("briefing", Briefing.Toggle);
+            if (Input.GetKeyDown(KeyCode.Q)) WriteRequest("speak-toggle", null);
             if (Input.GetKeyDown(KeyCode.P)) Guard("planning toggle", PlanMode.Toggle);
             if (Input.GetKeyDown(KeyCode.M)) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
             if (Input.GetKeyDown(KeyCode.N)) Guard("project focus", () => AdvisorHud.Show("Projects: " + ProjectStore.CycleFocus(), 2.5f));
@@ -134,6 +139,9 @@ namespace OniAdvisor
             AdvisorHud.Show($"Cycle {GameClock.Instance.GetCycle() + 1}: snapshot sent to the advisor", 3f);
             Export("autosave", screenshot: true, request: true, history: true);
         }
+
+        /// <summary>Asks the companion for a new briefing (fresh snapshot + maps + screenshot first).</summary>
+        public void RequestBriefing() => Export("briefing", screenshot: true, request: true);
 
         /// <summary>Fresh snapshot + maps + screenshot, then a request file (used by planning mode).</summary>
         public void RequestWithScreenshot(string trigger)

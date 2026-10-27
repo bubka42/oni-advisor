@@ -195,6 +195,20 @@ namespace OniAdvisor
             }
         }
 
+        /// <summary>Draws marks in the advisor's style (cyan unless a mark has its own colour) onto a layer.</summary>
+        public static void DrawAdvisorStyle(MarkRenderer r, IEnumerable<Mark> marks)
+        {
+            int i = 1;
+            foreach (var m in marks)
+            {
+                if (m.Id == 0) m.Id = i;
+                i++;
+                m.By = "advisor";
+                var line = ParseColor(m.Color, AdvisorLine);
+                Draw(r, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
+            }
+        }
+
         static void Draw(MarkRenderer r, Mark m, Color fill, Color line, bool showLabel)
         {
             string tag = m.By == "advisor" ? $"A{m.Id}" : $"#{m.Id}";
