@@ -25,6 +25,8 @@ namespace OniAdvisor
         {
             public string Title, Say, Text, Zoom, Project;
             public int[] Focus;
+            public RectInt? Spotlight;     // the area to keep lit (from "spotlight", else the marks, else the focus)
+            public bool NoSpotlight;       // "spotlight": false
             public List<Mark> Marks = new List<Mark>();
         }
 
@@ -91,6 +93,7 @@ namespace OniAdvisor
         /// <summary>Every frame: timed auto-advance.</summary>
         public static void Tick(float now)
         {
+            if (open) BriefingStage.Tick();
             if (open && advanceAt >= 0f && now >= advanceAt)
             {
                 advanceAt = -1f;
@@ -113,6 +116,9 @@ namespace OniAdvisor
                     Project = (string)s["project"],
                 };
                 if (s["focus"] is JArray f && f.Count >= 2) step.Focus = new[] { (int)f[0], (int)f[1] };
+                if (s["spotlight"] is JArray sp && sp.Count >= 4)
+                    step.Spotlight = new RectInt(Math.Min((int)sp[0], (int)sp[2]), Math.Min((int)sp[1], (int)sp[3]), Math.Abs((int)sp[2] - (int)sp[0]) + 1, Math.Abs((int)sp[3] - (int)sp[1]) + 1);
+                else if (s["spotlight"] is JValue off && off.Type == JTokenType.Boolean && !(bool)off) step.NoSpotlight = true;
                 foreach (var m in s["marks"] ?? new JArray()) step.Marks.Add(Mark.FromJson(m));
                 newSteps.Add(step);
             }
@@ -177,6 +183,7 @@ namespace OniAdvisor
             advanceAt = -1f;
             stepLayer.Clear();
             ProjectStore.ForceShow(null);
+            BriefingStage.Hide();
             WritePlayback(-1); // tells the companion to stop speaking
             if (panel != null) panel.gameObject.SetActive(false);
             if (pausedByUs)
@@ -202,6 +209,7 @@ namespace OniAdvisor
             stepLayer.Visible = true;
             PlanMarks.DrawAdvisorStyle(stepLayer, s.Marks);
             ProjectStore.ForceShow(s.Project);
+            BriefingStage.Show(SpotlightArea(s), s.Title, s.Say);
             if (s.Focus != null)
             {
                 try
@@ -214,6 +222,34 @@ namespace OniAdvisor
                 catch (Exception e) { Log.Warn("briefing camera: " + e.Message); }
             }
             WritePlayback(current);
+        }
+
+        /// <summary>
+        /// The tiles a step is about: its "spotlight" rectangle if given, else everything its marks touch, else
+        /// the area around its camera focus. Null = no spotlight ("spotlight": false, or nothing to go on).
+        /// </summary>
+        static RectInt? SpotlightArea(Step s)
+        {
+            if (s.NoSpotlight) return null;
+            if (s.Spotlight.HasValue) return s.Spotlight;
+            if (s.Marks.Count > 0)
+            {
+                int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+                void Take(int x, int y) { minX = Math.Min(minX, x); minY = Math.Min(minY, y); maxX = Math.Max(maxX, x); maxY = Math.Max(maxY, y); }
+                foreach (var m in s.Marks)
+                {
+                    Take(m.X0, m.Y0); Take(m.X1, m.Y1);
+                    foreach (var p in m.Points) Take(p.x, p.y);
+                    if (m.Kind == "outline") { Take(m.X0 - 2, m.Y0 - 1); Take(m.X0 + 2, m.Y0 + 3); } // the building's size isn't known here
+                }
+                return new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            }
+            if (s.Focus != null)
+            {
+                int r = s.Zoom == "near" ? 5 : s.Zoom == "wide" ? 14 : 8;
+                return new RectInt(s.Focus[0] - r, s.Focus[1] - r, 2 * r + 1, 2 * r + 1);
+            }
+            return null;
         }
 
         static void WritePlayback(int step)
@@ -314,6 +350,7 @@ namespace OniAdvisor
         {
             if (open) Close();
             stepLayer.Clear();
+            BriefingStage.Destroy();
             if (panel != null) UnityEngine.Object.Destroy(panel.gameObject);
             panel = null; list = null;
             steps.Clear();

@@ -320,5 +320,13 @@ step's marks and project, and reads each `say` aloud.
 - `say`: one or two spoken sentences, no coordinates. `text`: optional detail for reading.
 - `zoom`: `near` | `base` | `wide`. `marks` show only during that step; `project` (an id from
   `projects.json`) shows that project's ghost.
+- **Spotlight:** during each step the game greys out the screen except the area the step is about —
+  by default everything that step's marks touch (else the area around `focus`). Keep a step's marks
+  together so the lit area stays tight; to choose it yourself add `"spotlight": [x0, y0, x1, y1]`, or
+  `"spotlight": false` for an overview step. The step's `say` also appears as a large caption, with
+  numbers highlighted, so put the key quantity in it ("makes 888 g/s of oxygen").
+- Your marks are drawn as quick hand-drawn sketches (circles around points and buildings, sketched
+  boxes, pen arrows) appearing one after another in the order you list them: list them in the order
+  you talk about them, and keep labels to a few words.
 - After writing it, reply with one sentence on what it covers.
 - Update `../<colony>-plan.md` when goals or decisions change.

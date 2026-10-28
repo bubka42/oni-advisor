@@ -106,6 +106,63 @@ namespace OniAdvisor
                 Segment(bx, by, bx + Mathf.Cos(ang + side) * size, by + Mathf.Sin(ang + side) * size, c, 0.22f);
         }
 
+        // ------------------------------------------------------------------ hand-drawn strokes (Sketch)
+
+        static Material lineMaterial;
+        static Material LineMaterial
+        {
+            get
+            {
+                // Sprites/Default ships with every Unity build (SpriteRenderer uses it).
+                if (lineMaterial == null) lineMaterial = new Material(Shader.Find("Sprites/Default"));
+                return lineMaterial;
+            }
+        }
+
+        float revealCursor = -1f;
+
+        /// <summary>Strokes drawn from now on reveal one after another, as if sketched (call once per batch of marks).</summary>
+        public void BeginReveal() => revealCursor = Time.unscaledTime;
+
+        /// <summary>No reveal: strokes appear at once (e.g. redraws of marks already shown).</summary>
+        public void NoReveal() => revealCursor = -1f;
+
+        /// <summary>A pen stroke along a polyline: tapered ends, slightly uneven pressure, drawn on if a reveal is running.</summary>
+        public void Stroke(List<Vector2> points, Color c, float width = 0.2f)
+        {
+            if (points == null || points.Count < 2) return;
+            var go = New("stroke");
+            float z = Z - 0.025f;
+            var pts = new Vector3[points.Count];
+            float len = 0f;
+            for (int i = 0; i < points.Count; i++)
+            {
+                pts[i] = new Vector3(points[i].x, points[i].y, z);
+                if (i > 0) len += Vector2.Distance(points[i - 1], points[i]);
+            }
+            var line = go.AddComponent<LineRenderer>();
+            line.useWorldSpace = true;
+            line.sharedMaterial = LineMaterial;
+            line.startColor = line.endColor = c;
+            line.numCapVertices = 4;
+            line.numCornerVertices = 2;
+            line.sortingOrder = SortingOrder + 2;
+            line.widthMultiplier = width;
+            line.widthCurve = new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.12f, 1f), new Keyframe(0.6f, 0.85f), new Keyframe(0.9f, 1f), new Keyframe(1f, 0.45f));
+            line.positionCount = pts.Length;
+            line.SetPositions(pts);
+            if (revealCursor >= 0f)
+            {
+                float duration = Mathf.Clamp(len * 0.035f, 0.12f, 0.6f);
+                var reveal = go.AddComponent<StrokeReveal>();
+                reveal.Points = pts;
+                reveal.Start = revealCursor;
+                reveal.Duration = duration;
+                line.positionCount = 0;
+                revealCursor += duration * 0.85f;
+            }
+        }
+
         /// <summary>Small square centred on a tile.</summary>
         public void Dot(int x, int y, Color c, float size = 0.55f) => Quad(x + 0.5f, y + 0.5f, size, size, c, 2);
 
@@ -123,11 +180,12 @@ namespace OniAdvisor
             go.transform.localScale = new Vector3(s, s, 1f);
         }
 
-        public void Label(float cx, float cy, string text, Color c)
+        public void Label(float cx, float cy, string text, Color c, float tiltDegrees = 0f)
         {
             if (string.IsNullOrEmpty(text)) return;
             var go = New("label");
             go.transform.position = new Vector3(cx, cy, Z - 0.03f);
+            if (tiltDegrees != 0f) go.transform.rotation = Quaternion.Euler(0f, 0f, tiltDegrees);
             var tmp = go.AddComponent<TextMeshPro>();
             var font = Localization.FontAsset;
             if (font != null) tmp.font = font;
@@ -168,6 +226,31 @@ namespace OniAdvisor
         {
             if (root != null) Object.Destroy(root);
             root = null;
+        }
+    }
+
+    /// <summary>Reveals a stroke over a short time, as if it were being drawn (unscaled time: briefings pause the game).</summary>
+    internal sealed class StrokeReveal : MonoBehaviour
+    {
+        public Vector3[] Points;
+        public float Start, Duration;
+        LineRenderer line;
+
+        void Awake() => line = GetComponent<LineRenderer>();
+
+        void Update()
+        {
+            if (line == null || Points == null) { enabled = false; return; }
+            float t = Duration <= 0 ? 1f : Mathf.Clamp01((Time.unscaledTime - Start) / Duration);
+            t = 1f - (1f - t) * (1f - t); // ease out: quick start, gentle finish
+            float exact = t * (Points.Length - 1);
+            int whole = Mathf.FloorToInt(exact);
+            int count = Mathf.Min(Points.Length, whole + 2);
+            line.positionCount = Mathf.Max(count, 0);
+            for (int i = 0; i < count && i <= whole; i++) line.SetPosition(i, Points[i]);
+            if (whole + 1 < Points.Length && count > whole + 1)
+                line.SetPosition(whole + 1, Vector3.Lerp(Points[whole], Points[whole + 1], exact - whole));
+            if (t >= 1f) { line.positionCount = Points.Length; line.SetPositions(Points); enabled = false; }
         }
     }
 }

@@ -147,11 +147,14 @@ namespace OniAdvisor
             Redraw();
         }
 
+        static bool drawnSketch = true;
+
         /// <summary>Cheap; call every second or so.</summary>
         public static void PollAdvisorFile()
         {
             try
             {
+                if (Prefs.SketchMarks != drawnSketch) { drawnSketch = Prefs.SketchMarks; Redraw(); } // mark style changed in the options
                 if (!File.Exists(AdvisorFile))
                 {
                     if (Advisor.Count > 0) { Advisor.Clear(); Redraw(); }
@@ -173,7 +176,7 @@ namespace OniAdvisor
                     i++;
                     Advisor.Add(mark);
                 }
-                Redraw();
+                Redraw(revealAdvisor: true);
                 Log.Info($"advisor marks loaded: {Advisor.Count}");
             }
             catch (Exception e) { Log.Warn("advisor marks load failed: " + e.Message); }
@@ -193,11 +196,12 @@ namespace OniAdvisor
 
         public static void ClearPreview() => previewLayer.Clear();
 
-        public static void Redraw()
+        public static void Redraw(bool revealAdvisor = false)
         {
             playerLayer.Clear();
             foreach (var m in Player) Draw(playerLayer, m, PlayerFill, PlayerLine, showLabel: true);
             advisorLayer.Clear();
+            if (revealAdvisor) advisorLayer.BeginReveal(); else advisorLayer.NoReveal();
             foreach (var m in Advisor)
             {
                 var line = ParseColor(m.Color, ToneColor(m.Tone));
@@ -208,6 +212,7 @@ namespace OniAdvisor
         /// <summary>Draws marks in the advisor's style (cyan unless a mark has its own colour) onto a layer.</summary>
         public static void DrawAdvisorStyle(MarkRenderer r, IEnumerable<Mark> marks)
         {
+            r.BeginReveal(); // sketched on, one mark after another
             int i = 1;
             foreach (var m in marks)
             {
@@ -223,6 +228,8 @@ namespace OniAdvisor
         {
             string tag = m.By == "advisor" ? $"A{m.Id}" : $"#{m.Id}";
             string label = showLabel ? (string.IsNullOrEmpty(m.Label) ? tag : $"{tag} {m.Label}") : null;
+            // The advisor's marks look hand-drawn (unless the player chose clean marks); the player's stay geometric.
+            if (m.By == "advisor" && Prefs.SketchMarks) { DrawSketch(r, m, line, label); return; }
             switch (m.Kind)
             {
                 case "point":
@@ -258,6 +265,63 @@ namespace OniAdvisor
                     r.Outline(m.X0, m.Y0, m.X1, m.Y1, line);
                     if (label != null) r.Label((Math.Min(m.X0, m.X1) + Math.Max(m.X0, m.X1) + 1) / 2f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// The hand-drawn version: a point or a building gets circled, an area gets a quickly sketched box over a
+        /// light wash, a line (shaft/route) a translucent marker stroke, a path or arrow a bowed pen line.
+        /// </summary>
+        static void DrawSketch(MarkRenderer r, Mark m, Color line, string label)
+        {
+            var rng = Sketch.Rng(Sketch.Seed(m));
+            float tilt = ((float)rng.NextDouble() - 0.5f) * 6f;
+            var wash = new Color(line.r, line.g, line.b, 0.13f);
+            switch (m.Kind)
+            {
+                case "point":
+                    r.Stroke(Sketch.Circle(new Vector2(m.X0 + 0.5f, m.Y0 + 0.5f), 1.15f, 1.0f, rng), line, 0.2f);
+                    if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 2.1f, label, line, tilt);
+                    break;
+                case "path":
+                case "arrow":
+                    {
+                        var pts = (m.Kind == "arrow" || m.Points.Count < 2 ? new List<(int x, int y)> { (m.X0, m.Y0), (m.X1, m.Y1) } : m.Points)
+                            .Select(p => new Vector2(p.x + 0.5f, p.y + 0.5f)).ToList();
+                        var stroke = Sketch.Path(pts, rng);
+                        r.Stroke(stroke, line, 0.22f);
+                        if (m.Kind == "arrow" || m.Arrow)
+                            foreach (var head in Sketch.ArrowHead(stroke[Math.Max(0, stroke.Count - 4)], stroke[stroke.Count - 1], rng)) r.Stroke(head, line, 0.2f);
+                        if (label != null) r.Label(pts[0].x, pts[0].y + 1.6f, label, line, tilt);
+                        break;
+                    }
+                case "outline":
+                    {
+                        int cell = Grid.XYToCell(m.X0, m.Y0);
+                        var obj = Grid.IsValidCell(cell) ? Grid.Objects[cell, (int)ObjectLayer.Building] : null;
+                        var bld = obj != null ? obj.GetComponent<Building>() : null;
+                        float l = m.X0, b = m.Y0, w = 1, h = 1;
+                        if (bld != null) { var e = bld.GetExtents(); l = e.x; b = e.y; w = e.width; h = e.height; }
+                        r.Stroke(Sketch.Circle(new Vector2(l + w / 2f, b + h / 2f), w / 2f + 0.9f, h / 2f + 0.9f, rng), line, 0.22f);
+                        if (label != null) r.Label(l + w / 2f, b + h + 1.9f, label, line, tilt);
+                        break;
+                    }
+                case "line":
+                    {
+                        var a = new Vector2(m.X0 + 0.5f, m.Y0 + 0.5f);
+                        var c = new Vector2(m.X1 + 0.5f, m.Y1 + 0.5f);
+                        r.Stroke(Sketch.Line(a, c, rng, bow: false), new Color(line.r, line.g, line.b, 0.4f), 0.9f); // highlighter
+                        if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line, tilt);
+                        break;
+                    }
+                default:
+                    {
+                        int x0 = Math.Min(m.X0, m.X1), x1 = Math.Max(m.X0, m.X1), y0 = Math.Min(m.Y0, m.Y1), y1 = Math.Max(m.Y0, m.Y1);
+                        r.Rect(x0, y0, x1, y1, wash);
+                        foreach (var side in Sketch.Box(x0, y0, x1 + 1, y1 + 1, rng)) r.Stroke(side, line, 0.18f);
+                        if (label != null) r.Label((x0 + x1 + 1) / 2f, y1 + 1.7f, label, line, tilt);
+                        break;
+                    }
             }
         }
 

@@ -78,6 +78,16 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   effort, proactivity, plan review interval, speech on/off, voice speed, auto-start (companion reloads on a
   `settings` request; model/effort changes restart the claude process, resuming the conversation).
   Delegated commands in "ask" mode get an APPROVE / DECLINE card at the top of the game screen (`Approvals`).
+- **Hand-drawn marks** (`Sketch.cs`, `MarkRenderer.Stroke`, `PlanMarks.DrawSketch`): advisor marks only
+  (player marks stay geometric). Point/outline = pen circle with overshoot, area = sketched box over a
+  wash, path/arrow = bowed pen line + two-stroke head, line = highlighter. LineRenderer with
+  `Sprites/Default`, tapered width curve; strokes draw themselves on one after another (`StrokeReveal`,
+  unscaled time). Seeded per mark, so stable. Option "Advisor's marks: Hand-drawn / Clean shapes"
+  (`MarkStyle`). Shapes previewed offline with `tools/SketchPreview` (docs/sketch-preview.png).
+- **Briefing stage** (`BriefingStage.cs`): spotlight = shaded overlay with a soft oval hole around the
+  step's area (`spotlight` rect, else the marks' bounds, else around `focus`), re-placed every frame from
+  the camera; option `Spotlight`. Caption = the step's `say` at bottom centre, 27 px, typing out at
+  ~17 chars/s, numbers with units highlighted.
 - **Custom instructions** (OPTIONS dialog, bottom; up to 2000 characters): saved to `advisor/custom-prompt.md`
   when the box loses focus or the dialog closes. The companion sends them once per conversation and again
   when they change (tracked per session id in `CustomPromptSent`); the advisor's CLAUDE.md ranks them above

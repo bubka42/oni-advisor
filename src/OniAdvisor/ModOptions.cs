@@ -137,7 +137,6 @@ namespace OniAdvisor
             var sh = show.gameObject.AddComponent<HorizontalLayoutGroup>();
             sh.childControlWidth = sh.childControlHeight = true; sh.childForceExpandWidth = false;
             OniStyle.MakeButton(show, "SHOW COMPANION WINDOW", () => Request("companion", null), 260);
-            Text(right, "The companion app runs in the background (tray icon) and normally needs no attention; its window has the full log.", 13, false, 44, OniStyle.TextMuted);
 
             CustomInstructions(box);
 
@@ -179,6 +178,8 @@ namespace OniAdvisor
             new Choice("SpeakBriefings", "Read briefings aloud", (true, "On"), (false, "Off")),
             new Choice("TtsSpeed", "Voice speed", (1.0, "Normal"), (1.1, "A bit faster"), (1.2, "Faster"), (1.3, "Fastest"), (0.9, "Slower")),
             new Choice("AutoStart", "Start with the game", (true, "On"), (false, "Off (start it by hand)")),
+            new Choice("MarkStyle", "Advisor's marks", ("sketch", "Hand-drawn"), ("clean", "Clean shapes")),
+            new Choice("Spotlight", "Briefing spotlight", (true, "On (grey out the rest)"), (false, "Off")),
         };
 
         static void ChoiceRow(Transform parent, Choice c)
