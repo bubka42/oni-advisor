@@ -178,6 +178,7 @@ public sealed class AdvisorSession : IDisposable
                 {
                     "advisor-marks.json" => "drawing on your map",
                     "pins.json" => "pinning suggestions to your map",
+                    "quests.json" => "updating the project list",
                     "briefing.json" => "writing the briefing",
                     "projects.json" => "drafting a project",
                     _ when w.EndsWith("-plan.md") => "updating the colony plan",

@@ -181,6 +181,13 @@ namespace OniAdvisor
                     threadTitle.text = "THREAD · COLONY PLAN";
                     AddRow(new JObject { ["who"] = "note", ["text"] = "Discussing the long-term plan (PLAN tab). Ask about goals, order, alternatives." }, 0, false);
                 }
+                else if (thread.StartsWith("quest:"))
+                {
+                    threadTitle.text = "THREAD · " + Short(QuestStore.ThreadTitle(thread), 48).ToUpperInvariant();
+                    AddRow(new JObject { ["who"] = "note", ["text"] = thread.Split(':').Length > 2
+                        ? "Discussing this milestone: how to do it, whether it is done, what it needs."
+                        : "Discussing this project: whether to take it on, how to go about it, what is left." }, 0, false);
+                }
                 else
                 {
                     var root = all.FirstOrDefault(e => ((long?)e["n"] ?? 0).ToString() == thread);
@@ -609,7 +616,7 @@ namespace OniAdvisor
             if (AdvisorPanel.Typing || ModOptions.Typing || AdvisorPanel.JustLeftTyping) return true;
             if (Briefing.IsOpen && (e.IsAction(Action.Escape) || e.IsAction(Action.TogglePause) || e.IsAction(Action.PanLeft) || e.IsAction(Action.PanRight))) return true;
             if (AdvisorPanel.IsOpen && e.IsAction(Action.Escape)) return true;
-            if (down && AdvisorPanel.PointerOver && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) return true;
+            if (down && (AdvisorPanel.PointerOver || QuestPanel.PointerOver) && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) return true;
             return Hotkeys.IsOursNow();
         }
     }

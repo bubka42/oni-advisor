@@ -89,6 +89,14 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Projects as quests** (`QuestStore.cs`, `QuestPanel.cs`, companion `Quests.cs`): the advisor proposes in
+  `live/quests.json` (id, title, kind infrastructure|colony, horizon short|long, why, milestones with optional
+  looksDone, linked blueprint `project`, `advice`, status proposed|scrapped); the player's decisions live in
+  `live/quests-state.json`, written only by the mod (accepted/declined/stalled/abandoned/completed, ticked
+  milestones; the last tick completes). PROJECTS list on the left: collapsible sections and projects,
+  milestone checkboxes, ACCEPT/DECLINE, HOLD/ABANDON/RESUME, BLUEPRINT, DISCUSS; threads "quest:ID" and
+  "quest:ID:MILESTONE". Every prompt carries a one-line project summary and the player's changes;
+  autosave briefings and plan reviews are told to work with the projects.
 - **Keyboard** (`Hotkeys.cs`, `AdvisorKeys` in AdvisorPanel.cs): Esc closes the advisor panel (the first Esc only
   leaves the typing box) and briefings; briefings: Space pause/continue (stops the voice, replays the step),
   Left/Right step. Hotkey presets in the options: standard (Ctrl+Shift+key), simple (single keys: T panel,

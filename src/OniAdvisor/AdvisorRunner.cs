@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); QuestPanel.Destroy(); QuestStore.Clear(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -73,6 +73,7 @@ namespace OniAdvisor
             Guard("live queries", () => LiveQueries.Tick(now));
             Guard("thinking view", () => ThinkingView.Tick(now));
             Guard("pins", Pins.Tick);
+            Guard("projects list", QuestPanel.Tick);
             Guard("network spike", () => NetSpike.Frame(now, Time.unscaledDeltaTime));
 
             if (now >= nextMemorySave)
@@ -96,6 +97,7 @@ namespace OniAdvisor
                 Guard("waiting builds", BuildPlacer.Poll);
                 Guard("guided planning", GuidedPlan.Poll);
                 Guard("pins poll", Pins.Poll);
+                Guard("quests", QuestStore.Poll);
                 Guard("commands", Commands.Poll);
                 Guard("advisor status", AdvisorHud.PollStatus);
                 Guard("briefing poll", Briefing.Poll);

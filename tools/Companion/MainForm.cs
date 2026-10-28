@@ -23,6 +23,7 @@ public sealed class MainForm : Form
     readonly GameWatch watch;
     readonly ChatLog chat;
     readonly ThinkingShow show;
+    readonly Quests quests;
     readonly ConversationLog convo;
 
     readonly RichTextBox log = new() { ReadOnly = true, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(24, 26, 30), ForeColor = Color.Gainsboro, Font = new Font("Segoe UI", 10f) };
@@ -49,6 +50,8 @@ public sealed class MainForm : Form
         watch = new GameWatch(liveDir);
         chat = new ChatLog(liveDir);
         show = new ThinkingShow(liveDir);
+        quests = new Quests(liveDir);
+        quests.News(); // remember where things stand, so only later changes are news
         HookAdvisorEvents();
         convo = new ConversationLog(liveDir);
 
@@ -784,18 +787,20 @@ public sealed class MainForm : Form
             string recent = convo.Recent(20, 8000);
             if (recent.Length > 0) sb.AppendLine("(New conversation. What you and the player said earlier, oldest first:)\n" + recent);
         }
-        string updates = watch.Take() + PinNews();
+        string updates = watch.Take() + PinNews() + quests.News();
         if (updates.Length > 0) sb.AppendLine("Since your last message, in the game:\n" + updates);
         sb.AppendLine("Player's view: " + view);
         if (!string.IsNullOrWhiteSpace(facts)) sb.AppendLine("Fetched from the game just now:\n" + facts.TrimEnd());
         sb.AppendLine("Colony summary: " + ColonyDigest.Build(liveDir));
+        string questLine = quests.Summary();
+        if (questLine.Length > 0) sb.AppendLine(questLine);
         sb.AppendLine("Tools: MapQuery = dotnet \"" + MapQueryDll() + "\" (live region|cell|buildings|pipes|ports|rates|find ...). Files: live/state.json, live/map/, live/screenshots/, live/colony-plan.md.");
         if ((string?)req?["screenshot"] is { } shotPath)
             sb.AppendLine(trigger is "hotkey" or "plan" ? "The attached screenshot is what the player sees right now." : "Screenshot: " + RelativeToAdvisor(shotPath));
         if (thread != null)
         {
             var (root, said) = chat.Thread(thread);
-            string about = thread == "plan" ? "the colony plan (live/colony-plan.md)" : root.Length > 0 ? root : "an earlier message";
+            string about = thread == "plan" ? "the colony plan (live/colony-plan.md)" : thread.StartsWith("quest:") ? quests.About(thread) : root.Length > 0 ? root : "an earlier message";
             sb.AppendLine($"This message is in a THREAD — a side conversation about: {about}");
             if (said.Length > 0) sb.AppendLine("Said in this thread so far:\n" + said);
             sb.AppendLine("Answer within this thread's topic (clarify, go deeper, adjust the plan); it is not a new main-channel topic. If your answer changes marks, a project or the plan, update them.");
@@ -803,7 +808,7 @@ public sealed class MainForm : Form
         switch (trigger)
         {
             case "autosave":
-                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. When nothing urgent is going on, make it mostly about the long-term plan: where the colony is heading and the next project. Then reply with one sentence on what it covers.");
+                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. When nothing urgent is going on, make it mostly about the long-term plan and the projects: progress on the ongoing ones, which proposal to take on next, what to hold or drop. Then reply with one sentence on what it covers.");
                 break;
             case "briefing":
                 sb.AppendLine(text != null
@@ -831,7 +836,7 @@ public sealed class MainForm : Form
                 sb.AppendLine("Nothing was asked: this is a game update. If something above is worth telling the player now — a risk, a mistake, a consequence of what they just built, a good next step — give a tip: start with its urgency, [critical] (pauses the game: someone may die or something breaks within moments), [urgent] (check it as soon as convenient) or [later] (at leisure), then say it briefly (urgent and critical tips are read aloud), with marks if a place matters. Don't repeat what you already told them. Otherwise reply exactly: (silent)");
                 break;
             case "review":
-                sb.AppendLine("Nothing was asked and nothing urgent is going on: time to look ahead (see CLAUDE.md, \"Long-term planning\"). Review live/colony-plan.md against the colony as it is now and update it. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
+                sb.AppendLine("Nothing was asked and nothing urgent is going on: time to look ahead (see CLAUDE.md, \"Long-term planning\"). Review live/colony-plan.md and the projects (live/quests.json, live/quests-state.json; CLAUDE.md, \"Projects\") against the colony as it is now: update the plan, propose a project when the player has no good next one, scrap proposals that no longer fit, flag milestones that look done, and give advice on ongoing or stalled projects where it matters. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
                 break;
         }
         if (text != null && trigger is "ask" or "chat") sb.AppendLine($"Player ({(via == "voice" ? "spoken" : "typed")}): {text}");

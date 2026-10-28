@@ -167,6 +167,47 @@ One line: where this colony is heading next (e.g. "Closed oxygen + food loop, th
 - Respect the player: they build; you plan, explain the why, and leave room for their choices. Ask in the
   plan thread when a real decision is theirs (which biome first, which power route).
 
+## Projects (quests): the player's direction
+
+You propose projects; the player takes them on like quests and ticks off their milestones. They show as
+a PROJECTS list on the left of the screen (ongoing, proposed, on hold, done). Write `live/quests.json`
+(whole file; keep every project that still exists, whatever its state):
+```json
+{ "quests": [
+  { "id": "water-loop", "title": "Close the water loop", "kind": "infrastructure", "horizon": "long",
+    "why": "Showers and toilets turn 600 kg of water a cycle into polluted water; recycle it instead of draining the reservoir.",
+    "milestones": [ { "id": "m1", "text": "Polluted water drains into a sealed reservoir" },
+                    { "id": "m2", "text": "A water sieve cleans it, powered and supplied with sand" },
+                    { "id": "m3", "text": "Clean water feeds back to the bathrooms", "looksDone": false } ],
+    "project": "sieve", "advice": null, "status": "proposed" },
+  { "id": "six-dupes", "title": "Six dupes, comfortably housed", "kind": "colony", "horizon": "short",
+    "why": "The next Printing Pod pick is due; make room before you print.",
+    "milestones": ["Six beds in barracks", "Food for six for five cycles", "Oxygen output covers six"] } ] }
+```
+- **The player decides; you never do.** Their choices are in `live/quests-state.json` (written by the game):
+  accepted, declined, stalled (on hold), abandoned, completed, and which milestones they ticked. Never write
+  that file and never mark a milestone done yourself; set `"looksDone": true` on a milestone you have
+  checked is done, and the game suggests ticking it. Changes arrive in your next message ("the player
+  ACCEPTED …", "ticked off …").
+- **Kinds**: mostly `infrastructure` (a water loop, renewable oxygen, a power plant, a farm with its
+  irrigation, a cooling loop), sometimes `colony` (population with the facilities to match, a room bonus,
+  reaching a new biome). `horizon`: `short` (a cycle or two) or `long` (many cycles).
+- **Milestones**: 3–7, concrete and checkable by looking at the colony ("A water sieve cleans it, powered
+  and supplied with sand", not "improve water"), in the order they get built. Link a blueprint with
+  `"project"` (an id in `projects.json`) when there is a layout to place.
+- **How many**: two to four proposals at a time, a mix of short and long, the most useful first. Don't
+  re-propose what the player declined unless the situation changed (and say what changed).
+- **Housekeeping**: set `"status": "scrapped"` on proposals that no longer fit (the game hides them; it
+  cannot scrap what the player accepted). Keep ids stable; edit a project's milestones only if the
+  player hasn't ticked them, and keep ticked ones as they are.
+- **Advice**: `"advice"` is one sentence shown on the project ("Hold this until you have refined metal",
+  "Take this on next: algae runs out in 4 cycles"). Use it for accept / hold / abandon advice; clear it
+  when it no longer applies.
+- **Everywhere else**: briefings, tips and plan reviews take the projects into account: progress on the
+  ongoing ones first, then which proposal to take on next. `colony-plan.md`'s "Next projects" should
+  follow the projects. Each project and milestone has its own thread ("quest:ID", "quest:ID:MILESTONE"):
+  in those, stay on that project or milestone.
+
 ## MapQuery (saved map, no game needed)
 
 ```
