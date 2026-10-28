@@ -12,7 +12,7 @@ namespace OniAdvisor
 {
     /// <summary>
     /// Briefing mode. The advisor writes live/briefing/briefing.json as steps (say / text / focus / zoom /
-    /// marks / project). Ctrl+Shift+B (or the badge prompt) opens an ONI-style panel, pauses the game and
+    /// marks / project). Ctrl+Shift+B (or the ADVISOR button) opens an ONI-style panel, pauses the game and
     /// plays the steps: the camera moves to each step's focus, its marks and project are shown, and the
     /// companion reads its "say" aloud. When the companion reports a step finished
     /// (live/briefing/playback-done.json), the next step starts. Back / Next / Close buttons; closing unpauses.
@@ -68,7 +68,7 @@ namespace OniAdvisor
                         if (!first || (System.DateTime.UtcNow - t).TotalMinutes < 2)
                         {
                             unseen = true;
-                            AdvisorHud.Show($"Briefing ready ({steps.Count} steps): press Ctrl+Shift+B", 6f);
+                            AdvisorHud.Show($"Briefing ready ({steps.Count} steps): click ADVISOR below, or Ctrl+Shift+B", 6f);
                         }
                         if (open) { current = 0; Rebuild(); PlayStep(); }
                     }

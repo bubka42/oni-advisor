@@ -65,6 +65,7 @@ namespace OniAdvisor
 
             Guard("memory tick", () => MapMemory.Current?.Tick(now));
             Guard("hud", AdvisorHud.Tick);
+            Guard("advisor card", AdvisorCard.Tick);
             Guard("overlay", () => Overlays.Tick(now));
             Guard("briefing", () => Briefing.Tick(now));
             Guard("advisor panel", () => AdvisorPanel.Tick(now));

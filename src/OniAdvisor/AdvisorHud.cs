@@ -9,23 +9,23 @@ namespace OniAdvisor
 {
     /// <summary>
     /// The advisor's on-screen presence:
-    ///   - toasts at the top centre acknowledging triggers ("Sent to advisor", "Planning mode on", ...)
-    ///   - a small status badge at the bottom left: idle / thinking / first line of the latest reply,
-    ///     read from live/advisor-status.json, which the companion app writes.
-    /// Its own screen-space canvas; clicks pass through to the game.
-    /// UNTESTED IN GAME: position and size may need tuning.
+    ///   - toasts at the top centre acknowledging triggers ("Sent to advisor", "Planning mode on", ...);
+    ///   - the ADVISOR button at the bottom centre, which also shows the advisor's state (ready, thinking,
+    ///     listening, briefing ready) read from live/advisor-status.json (written by the companion); clicking it
+    ///     opens a waiting briefing, else the advisor panel;
+    ///   - tips and answers to questions not typed in the panel open a card (AdvisorCard).
+    /// Its own screen-space canvas; everything except the button and cards lets clicks through.
     /// </summary>
     internal static class AdvisorHud
     {
         static GameObject root;
-        static TextMeshProUGUI toastText, badgeText;
-        static Image toastBg, badgeBg;
+        static TextMeshProUGUI toastText, statusLabel;
+        static Image toastBg, statusBg;
         static readonly Queue<(string text, float seconds)> toasts = new Queue<(string, float)>();
         static float toastUntil;
         static System.DateTime statusTime;
         static string lastReplyShown;
-
-        static Color Accent => OniStyle.HeaderLight;
+        static bool busy, lastUnseen;
 
         public static void Show(string text, float seconds = 3.5f)
         {
@@ -49,16 +49,20 @@ namespace OniAdvisor
                 }
                 else if (toastBg.gameObject.activeSelf) toastBg.gameObject.SetActive(false);
             }
+            // The button glows gently while the advisor works.
+            if (statusBg != null)
+                statusBg.color = busy ? Color.Lerp(OniStyle.Button, OniStyle.HeaderLight, 0.35f + 0.35f * Mathf.Sin(now * 4f)) : OniStyle.Button;
         }
 
         /// <summary>Reads live/advisor-status.json (written by the companion) about once a second.</summary>
         public static void PollStatus()
         {
             if (root == null) return;
+            if (Briefing.HasUnseen != lastUnseen && !busy) { lastUnseen = Briefing.HasUnseen; SetIdle(); } // a briefing arrived or was watched
             var path = Path.Combine(Paths.LiveDir, "advisor-status.json");
             try
             {
-                if (!File.Exists(path)) { SetBadge("Advisor: companion not running", false); return; }
+                if (!File.Exists(path)) { SetStatus("not running", false); return; }
                 var t = File.GetLastWriteTimeUtc(path);
                 if (t == statusTime) return;
                 var o = JObject.Parse(File.ReadAllText(path));
@@ -67,27 +71,41 @@ namespace OniAdvisor
                 string text = (string)o["text"];
                 switch (state)
                 {
-                    case "thinking": SetBadge("Advisor: thinking…", true); break;
-                    case "notice": Show(text ?? "", 3f); SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (click or Ctrl+Shift+T to chat)", Briefing.HasUnseen); break;
-                    case "listening": SetBadge("Advisor: listening… (release V to send)", true); break;
-                    case "transcribing": SetBadge("Advisor: transcribing…", true); break;
-                    case "heard": SetBadge("Advisor: heard you, thinking…", true); Show("Heard: " + Shorten(text, 140), 5f); break;
-                    case "error": SetBadge("Advisor: error (Options in the Mods screen: SHOW COMPANION WINDOW)", false); break;
+                    case "thinking": SetStatus("thinking…", true); break;
+                    case "notice": Show(text ?? "", 3f); SetIdle(); break;
+                    case "listening": SetStatus("listening… (release V)", true); break;
+                    case "transcribing": SetStatus("transcribing…", true); break;
+                    case "heard": SetStatus("heard you, thinking…", true); Show("Heard: " + Shorten(text, 140), 5f); break;
+                    case "error": SetStatus("error", false); Show("The advisor hit an error (Mods > Options > SHOW COMPANION WINDOW for details)", 5f); break;
                     case "replied":
-                        SetBadge("Advisor: " + Shorten(text, 110), true);
-                        if (text != lastReplyShown) { lastReplyShown = text; Show("Advisor replied: click below or Ctrl+Shift+T", 3f); }
+                        SetIdle();
+                        string full = (string)o["full"] ?? text ?? "";
+                        string key = (string)o["utc"];
+                        if (key == lastReplyShown) break;
+                        lastReplyShown = key;
+                        string level = (string)o["level"];
+                        string via = (string)o["via"] ?? "";
+                        // Tips, and answers to questions asked outside the panel, get a card; panel answers are in the panel.
+                        if (level != "critical" && !AdvisorPanel.IsOpen && (level != null || via != "panel"))
+                            AdvisorCard.Show(level, full, (long?)o["chat"] ?? 0);
                         break;
-                    default: SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (click or Ctrl+Shift+T to chat)", Briefing.HasUnseen); break;
+                    default: SetIdle(); break;
                 }
             }
             catch { /* half-written file; next poll */ }
         }
 
-        static void SetBadge(string text, bool highlight)
+        static void SetIdle()
         {
-            if (badgeText == null) return;
-            badgeText.text = text;
-            badgeText.color = highlight ? Accent : OniStyle.TextMuted;
+            if (Briefing.HasUnseen) SetStatus("briefing ready", true, pulse: false);
+            else SetStatus("ready", false);
+        }
+
+        static void SetStatus(string text, bool highlight, bool pulse = true)
+        {
+            busy = highlight && pulse;
+            if (statusLabel == null) return;
+            statusLabel.text = $"ADVISOR  <size=13><color=#{ColorUtility.ToHtmlStringRGB(highlight ? OniStyle.Header : new Color(0.35f, 0.38f, 0.48f))}>· {text}</color></size>";
         }
 
         static string Shorten(string s, int max)
@@ -114,13 +132,12 @@ namespace OniAdvisor
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1920, 1080);
                 scaler.matchWidthOrHeight = 0.5f;
-                root.AddComponent<GraphicRaycaster>(); // briefing panel buttons; toast and badge let clicks through
+                root.AddComponent<GraphicRaycaster>(); // buttons and cards; toasts let clicks through
 
                 (toastBg, toastText) = Box("toast", new Vector2(0.5f, 1f), new Vector2(0, -70), new Vector2(780, 46), 19, TextAlignmentOptions.Center);
                 toastBg.gameObject.SetActive(false);
-                (badgeBg, badgeText) = Box("badge", new Vector2(0.5f, 0f), new Vector2(0, 10), new Vector2(660, 34), 16, TextAlignmentOptions.Center);
-                SetBadge("Advisor: ready (click or Ctrl+Shift+T to chat)", false);
-                MakeOpener();
+                MakeButton();
+                SetStatus("ready", false);
             }
             catch (System.Exception e)
             {
@@ -130,24 +147,19 @@ namespace OniAdvisor
             }
         }
 
-        /// <summary>
-        /// Opening the advisor without hotkeys: the status badge itself is clickable (the waiting briefing if
-        /// there is one, else the advisor panel), and an ADVISOR button sits beside it.
-        /// </summary>
-        static void MakeOpener()
+        /// <summary>The ADVISOR button at the bottom centre: shows the state, opens a waiting briefing or the panel.</summary>
+        static void MakeButton()
         {
-            void Open() { if (Briefing.HasUnseen) Briefing.Toggle(); else AdvisorPanel.Toggle(); }
-            badgeBg.raycastTarget = true;
-            var badgeButton = badgeBg.gameObject.AddComponent<Button>();
-            badgeButton.targetGraphic = badgeBg;
-            badgeButton.onClick.AddListener(Open);
-
-            var b = OniStyle.MakeButton(root.transform, "ADVISOR", AdvisorPanel.Toggle, 120);
+            var b = OniStyle.MakeButton(root.transform, "ADVISOR", () => { if (Briefing.HasUnseen) Briefing.Toggle(); else AdvisorPanel.Toggle(); }, 300);
             var rt = (RectTransform)b.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
-            rt.pivot = new Vector2(1f, 0f);
-            rt.anchoredPosition = new Vector2(-338f, 10f);
-            rt.sizeDelta = new Vector2(120f, 34f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0f, 10f);
+            rt.sizeDelta = new Vector2(300f, 36f);
+            statusBg = b.GetComponent<Image>();
+            statusLabel = b.GetComponentInChildren<TextMeshProUGUI>();
+            statusLabel.richText = true;
+            var colors = b.colors; colors.normalColor = colors.selectedColor = Color.white; b.colors = colors; // the image colour carries the glow
         }
 
         /// <summary>ONI-style strip: slate panel with a pink accent bar on the left.</summary>
@@ -172,8 +184,10 @@ namespace OniAdvisor
             text.alignment = align == TextAlignmentOptions.Center ? TextAlignmentOptions.Midline : TextAlignmentOptions.MidlineLeft;
             return (bg, text);
         }
+
         public static void Destroy()
         {
+            AdvisorCard.Destroy();
             if (root != null) Object.Destroy(root);
             root = null;
             toasts.Clear();

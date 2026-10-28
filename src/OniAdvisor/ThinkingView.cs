@@ -9,7 +9,7 @@ namespace OniAdvisor
     /// <summary>
     /// Shows the advisor's thinking while the player waits (option "Show the advisor's thinking"): the companion
     /// writes live/think.json whenever the advisor queries a place; this circles that place, shows the advisor's
-    /// latest thought as a caption above the status badge and, with "captions + camera", glides the camera there
+    /// latest thought as a caption above the ADVISOR button and, with "captions + camera", glides the camera there
     /// and opens the matching overlay. When the turn ends, the camera and overlay go back to where they were,
     /// unless the player moved the camera in the meantime (then it stops following and leaves it alone).
     /// Briefings keep control of the camera while they play.

@@ -562,7 +562,7 @@ namespace OniAdvisor
         static string Short(string s, int max) => s.Length <= max ? s : s.Substring(0, max) + "…";
 
         /// <summary>The advisor's light Markdown as TextMeshPro rich text: **bold**, *italic*, `code`, headings, bullets.</summary>
-        static string Rich(string md)
+        internal static string Rich(string md)
         {
             var lines = Escape(md).Replace("\r", "").Split('\n');
             for (int i = 0; i < lines.Length; i++)

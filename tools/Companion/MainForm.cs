@@ -621,7 +621,10 @@ public sealed class MainForm : Form
         LogAnswer(text ?? $"({trigger})", answer);
         convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", "review" => "plan review", "guide" => "guided plan", _ => thread != null ? "thread" : "live" }, cycle,
                   text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "guide" => $"(asked for a layout around a {(string?)req?["name"]} at {(int?)req?["x"]},{(int?)req?["y"]})", "update" or "review" => "(nothing asked)", _ => "" }, answer);
-        WriteStatus("replied", spoken);
+        // The game shows tips, and answers to questions not typed in the panel, in a card (full text, REPLY / CLOSE).
+        string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : trigger);
+        if (!(unasked && level == null)) WriteStatus("replied", spoken, answer, level, entry, via);
+        else WriteStatus("idle", null);
     }
 
     /// <summary>What to read aloud: a short answer whole; a long one's first two sentences and a pointer to the panel.</summary>
@@ -631,7 +634,7 @@ public sealed class MainForm : Form
         plain = global::System.Text.RegularExpressions.Regex.Replace(plain, @"^\s*[-•]\s*", "", global::System.Text.RegularExpressions.RegexOptions.Multiline).Trim();
         if (plain.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 45) return plain;
         var sentences = global::System.Text.RegularExpressions.Regex.Split(plain, @"(?<=[.!?])\s+");
-        return string.Join(" ", sentences.Take(2)) + " The rest is in the advisor panel.";
+        return string.Join(" ", sentences.Take(2)); // the full text is on screen; no need to say so every time
     }
 
     /// <summary>
@@ -864,13 +867,13 @@ public sealed class MainForm : Form
     }
 
     /// <summary>Tells the game mod what the advisor is doing; the mod shows it in its status badge.</summary>
-    void WriteStatus(string state, string? text)
+    void WriteStatus(string state, string? text, string? full = null, string? level = null, long chatEntry = 0, string? via = null)
     {
         try
         {
             var path = Path.Combine(liveDir, "advisor-status.json");
             var tmp = path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(new { state, text, utc = DateTime.UtcNow.ToString("o") }));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(new { state, text, full, level, chat = chatEntry, via, utc = DateTime.UtcNow.ToString("o") }));
             File.Move(tmp, path, overwrite: true);
         }
         catch { }

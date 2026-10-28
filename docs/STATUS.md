@@ -89,6 +89,12 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **HUD rework** (`AdvisorHud.cs`, `AdvisorCard.cs`): the status banner is gone; the ADVISOR button (bottom centre)
+  shows the state ("ADVISOR · thinking…", glows while busy) and opens a waiting briefing or the panel. Tips
+  and answers to questions not typed in the panel open a card in the briefing caption's style (title bar by
+  urgency, full text, REPLY / CLOSE), closing after a reading time unless hovered; the companion now sends
+  the full answer, tip level, chat entry and origin in advisor-status.json. Spoken answers no longer end
+  with "The rest is in the advisor panel."
 - **Pins** (`Pins.cs`): the advisor writes `live/pins.json` (id, x, y, tone, title, text, highlight, actions with
   commands). Round tone-coloured buttons follow the camera on the HUD canvas; a click opens a card below
   with the actions, ASK (opens the chat with "About the pin …") and DISMISS. Actions run through
