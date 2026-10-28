@@ -551,12 +551,16 @@ public sealed class MainForm : Form
         string facts = view.StartsWith("{") && trigger is not "autosave" and not "review" ? await LiveFacts.FetchAsync(liveDir, view, text) : "";
         string? shot = trigger is "hotkey" or "plan" ? (string?)req?["screenshot"] : null;
         var briefingFile = Path.Combine(liveDir, "briefing", "briefing.json");
+        var draftFile = Path.Combine(liveDir, "briefing", "draft.json");
         var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
+        var draftBefore = File.Exists(draftFile) ? File.GetLastWriteTimeUtc(draftFile) : DateTime.MinValue;
 
         cts ??= new CancellationTokenSource();
         string prompt = BuildPrompt(trigger, text, req, view, facts, thread);
         chat.CurrentThread = thread;
         var reply = await advisor.AskAsync(prompt, cts.Token, shot != null && File.Exists(shot) ? shot : null);
+        if (reply.Ok && File.Exists(draftFile) && File.GetLastWriteTimeUtc(draftFile) > draftBefore)
+            await VerifyBriefing(draftFile, briefingFile, cycle);
         if (trigger == "autosave") autosavePending = false;
         if (trigger == "review") lastReviewUtc = DateTime.UtcNow;
         currentActivity = "";
@@ -662,6 +666,42 @@ public sealed class MainForm : Form
     string? lastAdviceLevel;
 
     /// <summary>
+    /// A briefing is checked before the player sees it: the advisor drafts it (live/briefing/draft.json), then
+    /// gets a second turn to confirm every claim that something is broken, idle, empty, missing or running out
+    /// directly on that building or tile, fix or drop what doesn't hold, and publish the result to
+    /// briefing.json. If that turn fails, the draft is published as it is, marked unverified.
+    /// </summary>
+    async Task VerifyBriefing(string draftFile, string briefingFile, int cycle)
+    {
+        var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
+        chat.Stream("thinking", "", "checking the briefing's claims");
+        WriteStatus("thinking", "checking the briefing before showing it…");
+        const string prompt =
+            "[trigger: verify-briefing]\n" +
+            "Before the player sees your draft briefing (live/briefing/draft.json), check it like a sceptical reviewer. " +
+            "List to yourself every claim that something is broken, idle, empty, dry, blocked, wasting power, missing, running out, " +
+            "or should be switched off, moved or rebuilt, and every number the advice depends on. Treat each as unproven until a " +
+            "direct check confirms it: MapQuery cell/ports/rates/buildings on that very building or tile, live/state.json for " +
+            "colony totals. Room summaries and memory-mode data are not proof. Then fix the draft: correct what was wrong, drop " +
+            "what you cannot confirm, and add the evidence to each step's \"text\" (\"checked: intake holds 980 kg of water\"). " +
+            "Write the result to live/briefing/briefing.json (same format) and reply with one sentence: what you changed, or " +
+            "\"verified, no changes\".";
+        var check = await advisor.AskAsync(prompt, cts?.Token ?? CancellationToken.None);
+        bool published = File.Exists(briefingFile) && File.GetLastWriteTimeUtc(briefingFile) > before;
+        if (!published)
+        {
+            try
+            {
+                File.Copy(draftFile, briefingFile, overwrite: true);
+                chat.Add("note", "The briefing could not be double-checked" + (check.Ok ? "" : $" ({check.Error})") + "; showing it unverified.", cycle);
+            }
+            catch (Exception e) { System("Could not publish the briefing: " + e.Message); }
+        }
+        else if (check.Ok && check.Text.Trim().Length > 0)
+            chat.Add("note", "Briefing checked: " + check.Text.Trim(), cycle);
+    }
+
+    /// <summary>
     /// The player's own instructions from the mod options (advisor/custom-prompt.md): sent when a conversation
     /// starts and whenever they change, not with every message (the conversation remembers them).
     /// </summary>
@@ -725,12 +765,12 @@ public sealed class MainForm : Form
         switch (trigger)
         {
             case "autosave":
-                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing to live/briefing/briefing.json — as long as the situation needs (see CLAUDE.md), with plenty of marks. When nothing urgent is going on, make it mostly about the long-term plan: where the colony is heading and the next project. Then reply with one sentence on what it covers.");
+                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. When nothing urgent is going on, make it mostly about the long-term plan: where the colony is heading and the next project. Then reply with one sentence on what it covers.");
                 break;
             case "briefing":
                 sb.AppendLine(text != null
-                    ? "Write a briefing on: " + text + " — to live/briefing/briefing.json, as many steps as it needs, with plenty of marks and a project if a layout is involved. Then reply with one sentence on what it covers."
-                    : "The player asked for a briefing now. Write it to live/briefing/briefing.json — as long as the situation needs, with plenty of marks. Then reply with one sentence on what it covers.");
+                    ? "Write a briefing on: " + text + " — as a draft to live/briefing/draft.json (you will check it next), as many steps as it needs, with plenty of marks and a project if a layout is involved. Then reply with one sentence on what it covers."
+                    : "The player asked for a briefing now. Write the draft to live/briefing/draft.json (you will check it next) — as long as the situation needs, with plenty of marks. Then reply with one sentence on what it covers.");
                 break;
             case "pod":
                 sb.AppendLine("The Printing Pod selection is open: recommend one option from live/pod.json, briefly saying why.");

@@ -332,7 +332,11 @@ something wrong earlier, say so plainly in one sentence and correct it.
 
 ## Briefings
 
-Write the briefing to `live/briefing/briefing.json` (replace the whole file). The game keeps every briefing
+Write a briefing as a **draft** to `live/briefing/draft.json` (replace the whole file), never straight to
+`briefing.json`. The companion then gives you a `verify-briefing` turn: check every claim that something is
+broken, idle, empty, missing or running out on the building or tile itself, fix or drop what doesn't hold,
+put the evidence in the steps' `text`, and only then write `live/briefing/briefing.json`, which is what
+the player sees. A briefing is the deep format: it is worth the extra minute. The game keeps every briefing
 in an archive the player can replay; it plays one step by step: it pauses, moves the camera, shows each
 step's marks and project, and reads each `say` aloud.
 
