@@ -325,7 +325,7 @@ public sealed class MainForm : Form
         string trigger = (string?)req["trigger"] ?? "";
         switch (trigger)
         {
-            case "autosave" when settings.AutoBriefOnAutosave: Enqueue("autosave", null, req); break;
+            case "autosave" when settings.AutoBriefOnAutosave && settings.AdviceLevel != "minimal": Enqueue("autosave", null, req); break;
             case "pod" when settings.AutoPodPick: Enqueue("pod", null, req); break;
             case "plan" when settings.AutoReviewPlan: Enqueue("plan", TakeInput(), req); break;
             case "hotkey" when settings.AutoLookOnHotkey: Enqueue("hotkey", TakeInput(), req); break;
@@ -588,13 +588,15 @@ public sealed class MainForm : Form
             var m = global::System.Text.RegularExpressions.Regex.Match(answer, @"^\s*\[(critical|urgent|later)\]\s*", global::System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             level = m.Success ? m.Groups[1].Value.ToLowerInvariant() : "later";
             if (m.Success) answer = answer[m.Length..].Trim();
+            // Minimal advice: only critical tips light the bulb or speak; anything else stays a quiet chat entry.
+            if (settings.AdviceLevel == "minimal" && level != "critical") level = null;
         }
         long entry = chat.Add(level != null ? "tip-" + level : "advisor", answer, cycle, thread);
         if (level != null) Tips.Add(liveDir, level, answer, cycle, entry);
         chat.Stream("idle");
         Append(level != null ? $"Tip ({level})" : "Advisor", answer, level == "critical" ? Color.Salmon : level == "urgent" ? Color.Orange : Color.PaleGreen);
         string spoken = Spoken(answer);
-        if (settings.Speak && trigger is not "autosave" and not "briefing" && level != "later") voice.Speak(spoken);
+        if (settings.Speak && trigger is not "autosave" and not "briefing" && level != "later" && !(unasked && level == null)) voice.Speak(spoken);
         LogAnswer(text ?? $"({trigger})", answer);
         convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", "review" => "plan review", _ => thread != null ? "thread" : "live" }, cycle,
                   text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "update" or "review" => "(nothing asked)", _ => "" }, answer);
@@ -619,6 +621,11 @@ public sealed class MainForm : Form
     {
         bool fresh = watch.Poll();
         if (settings.Proactive == "never" || advisor.Busy) return;
+        // The advice level narrows (or widens) what the advisor may bring up unasked.
+        string level = settings.AdviceLevel;
+        bool seriousOnly = settings.Proactive == "serious" || level == "minimal";
+        int minGapSeconds = level == "teacher" ? Math.Min(settings.ProactiveMinSeconds, 90) : settings.ProactiveMinSeconds;
+        double reviewMinutes = level == "light" ? settings.PlanReviewMinutes * 2 : settings.PlanReviewMinutes;
         if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(Path.Combine(liveDir, "view.json"))).TotalSeconds > 30) return; // game not running
         var now = DateTime.UtcNow;
         double sincePlayer = (now - lastPlayerUtc).TotalSeconds, sinceTip = (now - lastProactiveUtc).TotalSeconds;
@@ -626,26 +633,34 @@ public sealed class MainForm : Form
         if (fresh && watch.HasEvents)
         {
             // Something serious (an alert, suffocation, starving …) may interrupt sooner than ordinary tips.
-            int minGap = watch.HasSerious ? Math.Min(30, settings.ProactiveMinSeconds) : settings.ProactiveMinSeconds;
-            bool ok = sincePlayer >= (watch.HasSerious ? 10 : 45) && sinceTip >= minGap && (settings.Proactive != "serious" || watch.HasSerious);
+            int minGap = watch.HasSerious ? Math.Min(30, minGapSeconds) : minGapSeconds;
+            bool ok = sincePlayer >= (watch.HasSerious ? 10 : 45) && sinceTip >= minGap && (!seriousOnly || watch.HasSerious);
             if (ok) { lastProactiveUtc = now; Enqueue("update", null); return; }
         }
 
-        // Calm: nothing serious pending, the player not mid-conversation, no tip for a while.
-        if (!watch.HasSerious && sincePlayer > 90 && sinceTip > settings.ProactiveMinSeconds
-            && (now - lastReviewUtc).TotalMinutes >= settings.PlanReviewMinutes)
+        // Calm: nothing serious pending, the player not mid-conversation, no tip for a while. (Minimal: no reviews.)
+        if (level != "minimal" && !watch.HasSerious && sincePlayer > 90 && sinceTip > minGapSeconds
+            && (now - lastReviewUtc).TotalMinutes >= reviewMinutes)
         {
             lastProactiveUtc = now;
             Enqueue("review", null);
         }
     }
 
+    string? lastAdviceLevel;
+
     string BuildPrompt(string trigger, string? text, JsonObject? req, string view, string facts, string? thread)
     {
         var sb = new global::System.Text.StringBuilder();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
         string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : "companion");
-        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}]" + (thread != null ? $" [thread: {thread}]" : ""));
+        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}] [advice level: {settings.AdviceLevel}]" + (thread != null ? $" [thread: {thread}]" : ""));
+        if (settings.AdviceLevel != lastAdviceLevel)
+        {
+            // Said once when it changes; CLAUDE.md ("Advice level") has what each level means.
+            if (lastAdviceLevel != null) sb.AppendLine($"The player changed the advice level to {settings.AdviceLevel.ToUpperInvariant()}: from now on, follow that level (CLAUDE.md, \"Advice level\").");
+            lastAdviceLevel = settings.AdviceLevel;
+        }
         if (advisor.FreshConversation)
         {
             string recent = convo.Recent(20, 8000);

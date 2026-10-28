@@ -10,6 +10,7 @@ public sealed class Settings
     public string? ClaudePath { get; set; }          // empty = auto-detect
     public string? Model { get; set; } = "sonnet";   // the advisor's model: sonnet (answers in ~5-15 s) or opus (deeper, slower)
     public string? Effort { get; set; } = "medium";  // low | medium | high
+    public string AdviceLevel { get; set; } = "standard"; // minimal | light | standard | teacher: how much advice (see advisor CLAUDE.md, "Advice level")
     public string Proactive { get; set; } = "freely"; // never | serious | freely: may the advisor speak up unasked?
     public int ProactiveMinSeconds { get; set; } = 120; // at least this long between unasked comments
     public int PlanReviewMinutes { get; set; } = 12;    // when calm, look ahead and advance the long-term plan this often

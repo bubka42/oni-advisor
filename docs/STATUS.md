@@ -78,6 +78,11 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   effort, proactivity, plan review interval, speech on/off, voice speed, auto-start (companion reloads on a
   `settings` request; model/effort changes restart the claude process, resuming the conversation).
   Delegated commands in "ask" mode get an APPROVE / DECLINE card at the top of the game screen (`Approvals`).
+- **Advice level** (`AdviceLevel`: standard | light | minimal | teacher; in the OPTIONS dialog). Defined in
+  the advisor's CLAUDE.md ("Advice level"); every prompt carries `[advice level: …]`, plus a one-time note when
+  it changes. The companion enforces the coarse part: minimal = only serious events prompt updates, no plan
+  reviews, no autosave briefings, non-critical unasked tips stay quiet chat entries (no bulb, no speech);
+  light = plan reviews half as often; teacher = unasked updates allowed every 90 s.
 - Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
   keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
   `(silent)` handling, Kokoro audio device.

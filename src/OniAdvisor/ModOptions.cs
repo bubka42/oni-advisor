@@ -95,7 +95,7 @@ namespace OniAdvisor
 
             var box = OniStyle.Rect("box", shade);
             box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(1040, 600);
+            box.sizeDelta = new Vector2(1120, 600);
             OniStyle.Fill(box, OniStyle.Panel, true);
 
             var header = OniStyle.Rect("header", box);
@@ -168,6 +168,7 @@ namespace OniAdvisor
 
         static readonly Choice[] Choices =
         {
+            new Choice("AdviceLevel", "Advice level", ("standard", "Standard"), ("light", "Light (the important bits)"), ("minimal", "Minimal (critical only)"), ("teacher", "Teacher (explains the why)")),
             new Choice("Model", "Model", ("sonnet", "Sonnet (answers in ~5-15 s)"), ("opus", "Opus (deeper, slower)")),
             new Choice("Effort", "Thinking", ("medium", "Medium"), ("high", "High"), ("low", "Low")),
             new Choice("Proactive", "Speaks up unasked", ("freely", "Freely"), ("serious", "Only when serious"), ("never", "Never")),
@@ -185,7 +186,7 @@ namespace OniAdvisor
             var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
             h.spacing = 8; h.childControlWidth = h.childControlHeight = true; h.childForceExpandWidth = false; h.childAlignment = TextAnchor.MiddleLeft;
             var lr = OniStyle.Rect("label", row);
-            lr.gameObject.AddComponent<LayoutElement>().preferredWidth = 160;
+            lr.gameObject.AddComponent<LayoutElement>().preferredWidth = 170;
             OniStyle.Label(lr, c.Label, 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
 
             var br = OniStyle.Rect("value", row);
