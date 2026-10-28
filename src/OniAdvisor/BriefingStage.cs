@@ -9,7 +9,8 @@ namespace OniAdvisor
     /// What a briefing step puts on screen besides its marks:
     ///   - a spotlight: everything is greyed out except a soft-edged oval around the area the step is about
     ///     (it follows the camera as the player pans or zooms); off in the mod options = no spotlight;
-    ///   - a caption: the step's spoken sentence, large, at the bottom of the screen, typing itself out at
+    ///   - a caption in the game's message-box style (pink title bar, slate panel, its fonts and keyword style):
+    ///     the step's spoken sentence, large, at the bottom of the screen, typing itself out at
     ///     about speaking speed, with numbers and quantities picked out.
     /// Both live on the HUD canvas behind the briefing panel and let clicks through.
     /// UNTESTED IN GAME.
@@ -97,12 +98,45 @@ namespace OniAdvisor
             rt.sizeDelta = new Vector2(Mathf.Max(0f, r - l), Mathf.Max(0f, t - b));
         }
 
-        /// <summary>Numbers with their units (888 g/s, 12 kg, 30%, 4 cycles) and coordinates stand out.</summary>
+        /// <summary>
+        /// Quantities (888 g/s, 12 kg, 30%, 4 cycles) and element names (Oxygen, Polluted Water…) in the game's
+        /// own keyword style, the way its tutorials and codex pick out key terms.
+        /// </summary>
         static string Highlight(string s)
         {
             s = s.Replace("<", "‹");
-            return Regex.Replace(s, @"\b\d[\d,.]*\s?(%|°C|kg/s|g/s|kg|g|W|kW|J|kJ|tiles?|cycles?|dupes?|duplicants?)?",
-                m => $"<b><color=#FFD86B>{m.Value}</color></b>");
+            var pattern = @"\b\d[\d,.]*\s?(%|°C|kg/s|g/s|kg|g|W|kW|J|kJ|tiles?|cycles?|dupes?|duplicants?)?\b";
+            var names = ElementNames();
+            if (names != null) pattern += "|" + names;
+            return Regex.Replace(s, pattern, m => Keyword(m.Value), RegexOptions.IgnoreCase);
+        }
+
+        static string Keyword(string text)
+        {
+            try { return global::STRINGS.UI.FormatAsKeyWord(text); }
+            catch { return $"<b>{text}</b>"; }
+        }
+
+        static string elementPattern;
+
+        /// <summary>A regex alternation of the elements' display names (longest first, so "Polluted Water" beats "Water").</summary>
+        static string ElementNames()
+        {
+            if (elementPattern != null) return elementPattern.Length > 0 ? elementPattern : null;
+            try
+            {
+                var names = new System.Collections.Generic.HashSet<string>();
+                foreach (var e in ElementLoader.elements)
+                {
+                    var n = global::STRINGS.UI.StripLinkFormatting(e.name ?? "").Trim();
+                    if (n.Length >= 3 && !n.Contains("<")) names.Add(n);
+                }
+                var list = new System.Collections.Generic.List<string>(names);
+                list.Sort((a, b) => b.Length.CompareTo(a.Length));
+                elementPattern = list.Count == 0 ? "" : @"\b(" + string.Join("|", list.ConvertAll(Regex.Escape)) + @")\b";
+            }
+            catch { elementPattern = ""; }
+            return elementPattern.Length > 0 ? elementPattern : null;
         }
 
         // ------------------------------------------------------------------ building
@@ -163,17 +197,27 @@ namespace OniAdvisor
             caption.anchoredPosition = new Vector2(-250f, 70f);
             caption.sizeDelta = new Vector2(1080f, 0f);
             caption.SetSiblingIndex(1);
-            OniStyle.Fill(caption, new Color(0.08f, 0.09f, 0.13f, 0.82f), false);
+            // The game's message-box look: a pink header bar with the title in its header font over a slate panel.
             var v = caption.gameObject.AddComponent<VerticalLayoutGroup>();
-            v.padding = new RectOffset(28, 28, 14, 18); v.spacing = 4;
-            v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false;
+            v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false; v.childForceExpandWidth = true;
             caption.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            var tr = OniStyle.Rect("title", caption);
-            captionTitle = OniStyle.Label(tr, "", 16, header: true, color: OniStyle.HeaderLight, align: TextAlignmentOptions.TopLeft, wrap: false);
-            var xr = OniStyle.Rect("text", caption);
-            captionText = OniStyle.Label(xr, "", 27, color: Color.white, align: TextAlignmentOptions.TopLeft);
+
+            var bar = OniStyle.Rect("title-bar", caption);
+            OniStyle.Fill(bar, OniStyle.Header, false);
+            var bl = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            bl.padding = new RectOffset(18, 18, 5, 4);
+            bl.childControlWidth = bl.childControlHeight = true;
+            var tr = OniStyle.Rect("title", bar);
+            captionTitle = OniStyle.Label(tr, "", 20, header: true, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+
+            var body = OniStyle.Rect("body", caption);
+            OniStyle.Fill(body, OniStyle.Panel, false);
+            var bv = body.gameObject.AddComponent<VerticalLayoutGroup>();
+            bv.padding = new RectOffset(22, 22, 12, 16);
+            bv.childControlWidth = bv.childControlHeight = true; bv.childForceExpandHeight = false;
+            var xr = OniStyle.Rect("text", body);
+            captionText = OniStyle.Label(xr, "", 25, color: Color.white, align: TextAlignmentOptions.TopLeft);
             captionText.richText = true;
-            captionText.outlineWidth = 0.15f;
             caption.gameObject.SetActive(false);
             root.gameObject.SetActive(false);
         }

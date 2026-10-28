@@ -86,8 +86,9 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   (`MarkStyle`). Shapes previewed offline with `tools/SketchPreview` (docs/sketch-preview.png).
 - **Briefing stage** (`BriefingStage.cs`): spotlight = shaded overlay with a soft oval hole around the
   step's area (`spotlight` rect, else the marks' bounds, else around `focus`), re-placed every frame from
-  the camera; option `Spotlight`. Caption = the step's `say` at bottom centre, 27 px, typing out at
-  ~17 chars/s, numbers with units highlighted.
+  the camera; option `Spotlight`. Caption = the step's `say` at bottom centre in the game's message-box style (pink title bar
+  in GRAYSTROKE, slate panel, body font), typing out at ~17 chars/s; quantities and element names via
+  `STRINGS.UI.FormatAsKeyWord` (the game's KKeyword style; falls back to bold).
 - **Custom instructions** (OPTIONS dialog, bottom; up to 2000 characters): saved to `advisor/custom-prompt.md`
   when the box loses focus or the dialog closes. The companion sends them once per conversation and again
   when they change (tracked per session id in `CustomPromptSent`); the advisor's CLAUDE.md ranks them above
