@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Talking to model APIs (Anthropic, and anything OpenAI-compatible: OpenAI, Gemini, OpenRouter, Ollama, ...)
+       with streaming, tool calls, images and cost tracking. netstandard2.0 + C# 9 and compiled against the
+       game's own Newtonsoft.Json 7 (lib/), so the same source runs inside the game (the mod compiles these
+       files in) and in the companion. No SDKs: plain HttpClient. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>OniAdvisor.Llm</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json" HintPath="..\..\lib\Newtonsoft.Json.dll" Private="false" />
+  </ItemGroup>
+</Project>

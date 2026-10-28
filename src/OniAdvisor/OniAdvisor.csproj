@@ -47,6 +47,8 @@
 
   <ItemGroup>
     <None Include="mod.yaml;mod_info.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The model layer, compiled straight into the mod (one DLL, against the game's Newtonsoft). -->
+    <Compile Include="..\OniAdvisor.Llm\*.cs" LinkBase="Llm" />
   </ItemGroup>
 
   <!-- dotnet build -p:Deploy=true copies the mod into the game's Dev mods folder. -->
