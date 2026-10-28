@@ -158,7 +158,7 @@ namespace OniAdvisor
                     if (layer.Flow != null)
                     {
                         var c = layer.Flow.GetContents(cell);
-                        s += c.mass > 0f && c.element != SimHashes.Vacuum ? $", {Mass(c.mass)} {ElementName(c.element)}" : ", empty";
+                        s += c.mass > 0f && c.element != SimHashes.Vacuum ? $", {Mass(c.mass)} {ElementName(c.element)}" : ", no packet at this instant";
                     }
                 }
                 list.Add(s);
@@ -213,7 +213,9 @@ namespace OniAdvisor
         public static string Rates(GameObject go)
         {
             var parts = new List<string>();
-            foreach (var (ins, outs) in Conversions(go))
+            var pump = go.GetComponent<Pump>();
+            if (pump != null) parts.Add(PumpRate(go, pump));
+            else foreach (var (ins, outs) in Conversions(go))
                 parts.Add(string.Join(" + ", ins.Select(i => $"{Rate(i.kg)} {i.name}")) + " → " + (outs.Count > 0 ? string.Join(" + ", outs.Select(o => $"{Rate(o.kg)} {o.name}")) : "nothing"));
             var gen = go.GetComponent<Generator>();
             if (gen != null) parts.Add($"makes {Mathf.RoundToInt(gen.WattageRating)} W" + (gen.IsProducingPower() ? "" : " (not now)"));
@@ -222,6 +224,30 @@ namespace OniAdvisor
             if (parts.Count == 0) return "";
             var op = go.GetComponent<Operational>();
             return string.Join("; ", parts) + (op == null ? "" : op.IsActive ? "; running" : "; idle");
+        }
+
+        /// <summary>
+        /// A pump moves whatever is at its intake into its pipe; it converts nothing. (Its consumer is set to
+        /// "Vacuum" = any element of its state, which once read as "pumping nothing".) Reported from the pump's
+        /// own view: whether it has anything to pump, what it last took, and what is at the intake now.
+        /// </summary>
+        static string PumpRate(GameObject go, Pump pump)
+        {
+            var consumer = go.GetComponent<ElementConsumer>();
+            var t = HarmonyLib.Traverse.Create(pump);
+            bool pumpable = t.Field("pumpable").GetValue<bool>();
+            var last = t.Field("lastElementConsumed").GetValue<SimHashes>();
+            string state = consumer != null && consumer.configuration == ElementConsumer.Configuration.AllGas ? "gas" : "liquid";
+            string what = consumer != null && consumer.configuration == ElementConsumer.Configuration.Element ? ElementName(consumer.elementToConsume) : "any " + state;
+            float rate = consumer != null ? consumer.consumptionRate : 0f;
+            string intake = "";
+            if (consumer != null)
+            {
+                int cell = Grid.PosToCell(go.transform.GetPosition() + consumer.sampleCellOffset);
+                if (Grid.IsValidCell(cell)) intake = $"; at its intake now: {ElementName(Grid.Element[cell].id)} {Grid.Mass[cell]:0.#} kg";
+            }
+            return $"pumps up to {Rate(rate)} of {what} from its intake into its {state} pipe (no conversion)" +
+                   (pumpable ? (last != SimHashes.Vacuum && last != 0 ? $"; pumping {ElementName(last)}" : "; has something to pump") : $"; NOTHING TO PUMP: no {state} at its intake") + intake;
         }
 
         static IEnumerable<(List<(string name, float kg)> ins, List<(string name, float kg)> outs)> Conversions(GameObject go)

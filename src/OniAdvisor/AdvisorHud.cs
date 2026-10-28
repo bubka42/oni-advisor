@@ -68,16 +68,16 @@ namespace OniAdvisor
                 switch (state)
                 {
                     case "thinking": SetBadge("Advisor: thinking…", true); break;
-                    case "notice": Show(text ?? "", 3f); SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (Ctrl+Shift+A to ask)", Briefing.HasUnseen); break;
+                    case "notice": Show(text ?? "", 3f); SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (click or Ctrl+Shift+T to chat)", Briefing.HasUnseen); break;
                     case "listening": SetBadge("Advisor: listening… (release V to send)", true); break;
                     case "transcribing": SetBadge("Advisor: transcribing…", true); break;
                     case "heard": SetBadge("Advisor: heard you, thinking…", true); Show("Heard: " + Shorten(text, 140), 5f); break;
-                    case "error": SetBadge("Advisor: error — see the companion window", false); break;
+                    case "error": SetBadge("Advisor: error (Options in the Mods screen: SHOW COMPANION WINDOW)", false); break;
                     case "replied":
                         SetBadge("Advisor: " + Shorten(text, 110), true);
-                        if (text != lastReplyShown) { lastReplyShown = text; Show("Advisor replied — see the companion window", 3f); }
+                        if (text != lastReplyShown) { lastReplyShown = text; Show("Advisor replied: click below or Ctrl+Shift+T", 3f); }
                         break;
-                    default: SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (Ctrl+Shift+A to ask)", Briefing.HasUnseen); break;
+                    default: SetBadge(Briefing.HasUnseen ? "Advisor: briefing ready (Ctrl+Shift+B)" : "Advisor: ready (click or Ctrl+Shift+T to chat)", Briefing.HasUnseen); break;
                 }
             }
             catch { /* half-written file; next poll */ }
@@ -119,7 +119,8 @@ namespace OniAdvisor
                 (toastBg, toastText) = Box("toast", new Vector2(0.5f, 1f), new Vector2(0, -70), new Vector2(780, 46), 19, TextAlignmentOptions.Center);
                 toastBg.gameObject.SetActive(false);
                 (badgeBg, badgeText) = Box("badge", new Vector2(0.5f, 0f), new Vector2(0, 10), new Vector2(660, 34), 16, TextAlignmentOptions.Center);
-                SetBadge("Advisor: ready (Ctrl+Shift+A to ask)", false);
+                SetBadge("Advisor: ready (click or Ctrl+Shift+T to chat)", false);
+                MakeOpener();
             }
             catch (System.Exception e)
             {
@@ -127,6 +128,26 @@ namespace OniAdvisor
                 if (root != null) Object.Destroy(root);
                 root = null;
             }
+        }
+
+        /// <summary>
+        /// Opening the advisor without hotkeys: the status badge itself is clickable (the waiting briefing if
+        /// there is one, else the advisor panel), and an ADVISOR button sits beside it.
+        /// </summary>
+        static void MakeOpener()
+        {
+            void Open() { if (Briefing.HasUnseen) Briefing.Toggle(); else AdvisorPanel.Toggle(); }
+            badgeBg.raycastTarget = true;
+            var badgeButton = badgeBg.gameObject.AddComponent<Button>();
+            badgeButton.targetGraphic = badgeBg;
+            badgeButton.onClick.AddListener(Open);
+
+            var b = OniStyle.MakeButton(root.transform, "ADVISOR", AdvisorPanel.Toggle, 120);
+            var rt = (RectTransform)b.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.anchoredPosition = new Vector2(-338f, 10f);
+            rt.sizeDelta = new Vector2(120f, 34f);
         }
 
         /// <summary>ONI-style strip: slate panel with a pink accent bar on the left.</summary>

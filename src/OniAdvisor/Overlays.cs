@@ -39,6 +39,9 @@ namespace OniAdvisor
         /// <summary>Turns projects on, keeping marks as they were (SHOW in the advisor panel).</summary>
         public static void ShowProjectsNow() { mode = mode == 1 ? 2 : mode == 0 ? 3 : mode; Apply(); }
 
+        /// <summary>Turns marks on, keeping projects as they were (the advisor just drew new marks).</summary>
+        public static void ShowMarksNow() { mode = mode == 3 ? 2 : mode == 0 ? 1 : mode; Apply(); }
+
         public static void Reset() => mode = 0;
     }
 }

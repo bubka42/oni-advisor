@@ -178,6 +178,12 @@ namespace OniAdvisor
                 }
                 Redraw(revealAdvisor: true);
                 Log.Info($"advisor marks loaded: {Advisor.Count}");
+                // New marks are meant to be seen: show them even if the overlay was off.
+                if (Advisor.Count > 0 && !Overlays.ShowMarks)
+                {
+                    Overlays.ShowMarksNow();
+                    AdvisorHud.Show($"The advisor marked {Advisor.Count} thing(s) on your map  (Ctrl+Shift+M: overlay)", 4f);
+                }
             }
             catch (Exception e) { Log.Warn("advisor marks load failed: " + e.Message); }
         }
