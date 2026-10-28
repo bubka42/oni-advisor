@@ -269,7 +269,10 @@ public sealed class MainForm : Form
 
     // ------------------------------------------------------------------ workspace
 
-    /// <summary>Copies CLAUDE.md (advisor instructions) into the advisor folder when it is missing or older.</summary>
+    /// <summary>
+    /// Copies CLAUDE.md (advisor instructions) into the advisor folder when it is missing or older, and the
+    /// player.md template when there is none yet (never over the player's own).
+    /// </summary>
     void EnsureWorkspace()
     {
         try
@@ -280,6 +283,13 @@ public sealed class MainForm : Form
             {
                 File.Copy(src, dst, overwrite: true);
                 System("Updated advisor instructions (CLAUDE.md).");
+            }
+            var profile = Path.Combine(advisorDir, "player.md");
+            var template = Path.Combine(repoRoot, "advisor-workspace", "player.md");
+            if (!File.Exists(profile) && File.Exists(template))
+            {
+                File.Copy(template, profile);
+                System("Created player.md: describe how you like to play, and the advisor will follow it.");
             }
         }
         catch (Exception e) { System("Could not copy CLAUDE.md: " + e.Message); }
