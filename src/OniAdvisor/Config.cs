@@ -40,7 +40,7 @@ namespace OniAdvisor
             ["delegation"] = new JObject
             {
                 ["research"] = "off", ["skills"] = "off", ["priorities"] = "off",
-                ["buildings"] = "off", ["storage"] = "off", ["projects"] = "off",
+                ["buildings"] = "off", ["storage"] = "off", ["projects"] = "off", ["errands"] = "off",
             },
             ["rules"] = new JObject
             {

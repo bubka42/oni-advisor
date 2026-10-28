@@ -22,6 +22,8 @@ namespace OniAdvisor
     ///   skills        {"action":"skill","dupe":"Meep","skill":"Farming2"}
     ///   priorities    {"action":"priority","x":40,"y":101,"priority":7}
     ///   buildings     {"action":"enable","x":40,"y":101,"on":false}         (queues the normal toggle errand)
+    ///                 priority and enable also take "targets": [[x,y], ...] instead of x, y
+    ///   errands       {"action":"cancel","x0":..,"y0":..,"x1":..,"y1":..,"what":["mop","dig","build","deconstruct"]}
     ///   storage       {"action":"storageFilter","x":40,"y":101,"set":["Coal"]} or "add"/"remove"
     ///   projects      {"action":"placeProject","project":"h2","priority":5} (buildings only; pipes/wires stay manual)
     /// Every command may carry "id" (else the file name is used) and "why" (shown to the player).
@@ -40,6 +42,7 @@ namespace OniAdvisor
         {
             ["research"] = "research", ["skill"] = "skills", ["priority"] = "priorities",
             ["enable"] = "buildings", ["storageFilter"] = "storage", ["placeProject"] = "projects",
+            ["cancel"] = "errands",
         };
 
         public static void Poll()
@@ -125,6 +128,90 @@ namespace OniAdvisor
             catch (Exception e) { Finish(id, cmd, "failed", e.Message); }
         }
 
+        /// <summary>
+        /// A command the player started themselves (a pin's action button): their click is the approval, so it
+        /// runs at once whatever the delegation setting. Logged like any other command. Returns the outcome.
+        /// </summary>
+        public static string RunByPlayer(JObject cmd, string source)
+        {
+            string id = "player-" + Paths.Stamp();
+            cmd = (JObject)cmd.DeepClone();
+            cmd["id"] = id;
+            cmd["why"] = (string)cmd["why"] ?? source;
+            cmd["by"] = "player";
+            try
+            {
+                string msg = Run(cmd);
+                Finish(id, cmd, "done", msg);
+                return msg;
+            }
+            catch (Exception e) { Finish(id, cmd, "failed", e.Message); return "Couldn't do it: " + e.Message; }
+        }
+
+        /// <summary>"targets": [[x,y], ...] runs the command on each (e.g. switch off four terrariums); else the one x,y.</summary>
+        static string ForEachTarget(JObject c, Func<JObject, string> one)
+        {
+            if (!(c["targets"] is JArray targets) || targets.Count == 0) return one(c);
+            var results = new List<string>();
+            foreach (var t in targets)
+            {
+                var single = (JObject)c.DeepClone();
+                single.Remove("targets");
+                single["x"] = t[0]; single["y"] = t[1];
+                try { results.Add(one(single)); }
+                catch (Exception e) { results.Add($"({t[0]},{t[1]}): {e.Message}"); }
+            }
+            return string.Join("; ", results);
+        }
+
+        static readonly ObjectLayer[] BuildLayers =
+        {
+            ObjectLayer.Building, ObjectLayer.FoundationTile, ObjectLayer.GasConduit, ObjectLayer.LiquidConduit,
+            ObjectLayer.Wire, ObjectLayer.LogicWire, ObjectLayer.SolidConduit, ObjectLayer.Backwall,
+        };
+
+        /// <summary>
+        /// Cancels errands in a rectangle, like the game's cancel tool with its filters: "what" any of mop, dig,
+        /// build (unbuilt build orders), deconstruct (deconstruction orders), or all.
+        /// </summary>
+        static string CancelErrands(JObject c)
+        {
+            int x0 = (int?)c["x0"] ?? (int?)c["x"] ?? 0, y0 = (int?)c["y0"] ?? (int?)c["y"] ?? 0;
+            int x1 = (int?)c["x1"] ?? x0, y1 = (int?)c["y1"] ?? y0;
+            var what = new HashSet<string>((c["what"] as JArray)?.Select(w => ((string)w).ToLowerInvariant()) ?? new[] { "all" });
+            bool all = what.Contains("all");
+            int mop = 0, dig = 0, build = 0, decon = 0;
+            var seen = new HashSet<UnityEngine.GameObject>();
+            for (int x = Math.Min(x0, x1); x <= Math.Max(x0, x1); x++)
+                for (int y = Math.Min(y0, y1); y <= Math.Max(y0, y1); y++)
+                {
+                    int cell = Grid.XYToCell(x, y);
+                    if (!Grid.IsValidCell(cell)) continue;
+                    if (all || what.Contains("mop")) { var m = Grid.Objects[cell, (int)ObjectLayer.MopPlacer]; if (m != null && seen.Add(m)) { m.Trigger((int)GameHashes.Cancel, null); mop++; } }
+                    if (all || what.Contains("dig")) { var d = Grid.Objects[cell, (int)ObjectLayer.DigPlacer]; if (d != null && seen.Add(d)) { d.Trigger((int)GameHashes.Cancel, null); dig++; } }
+                    foreach (var layer in BuildLayers)
+                    {
+                        var go = Grid.Objects[cell, (int)layer];
+                        if (go == null || seen.Contains(go)) continue;
+                        if ((all || what.Contains("build")) && go.GetComponent<Constructable>() != null) { seen.Add(go); go.Trigger((int)GameHashes.Cancel, null); build++; }
+                        else if (all || what.Contains("deconstruct"))
+                        {
+                            var dc = go.GetComponent<Deconstructable>();
+                            if (dc != null && dc.IsMarkedForDeconstruction()) { seen.Add(go); dc.CancelDeconstruction(); decon++; }
+                        }
+                    }
+                }
+            var parts = new List<string>();
+            if (mop > 0) parts.Add($"{mop} mop job(s)");
+            if (dig > 0) parts.Add($"{dig} dig order(s)");
+            if (build > 0) parts.Add($"{build} build order(s)");
+            if (decon > 0) parts.Add($"{decon} deconstruction order(s)");
+            return parts.Count == 0 ? "nothing to cancel there" : "cancelled " + string.Join(", ", parts);
+        }
+
+        static string SetPriority(JObject c) { var o = (JObject)c.DeepClone(); o["action"] = "priority-one"; return Run(o); }
+        static string Enable(JObject c) { var o = (JObject)c.DeepClone(); o["action"] = "enable-one"; return Run(o); }
+
         static string Run(JObject c)
         {
             switch ((string)c["action"])
@@ -142,6 +229,12 @@ namespace OniAdvisor
                     return LearnSkill(dupe, (string)c["skill"]);
                 }
                 case "priority":
+                    return ForEachTarget(c, one => SetPriority(one));
+                case "enable":
+                    return ForEachTarget(c, one => Enable(one));
+                case "cancel":
+                    return CancelErrands(c);
+                case "priority-one":
                 {
                     var go = BuildingAt(c) ?? throw new Exception("no building at that tile");
                     var pr = go.GetComponent<Prioritizable>() ?? throw new Exception("building has no priority");
@@ -149,7 +242,7 @@ namespace OniAdvisor
                     pr.SetMasterPriority(new PrioritySetting(PriorityScreen.PriorityClass.basic, v));
                     return $"{Name(go)} priority set to {v}";
                 }
-                case "enable":
+                case "enable-one":
                 {
                     var go = BuildingAt(c) ?? throw new Exception("no building at that tile");
                     var btn = go.GetComponent<BuildingEnabledButton>() ?? throw new Exception("building cannot be disabled");
@@ -259,6 +352,8 @@ namespace OniAdvisor
 
         static string Name(UnityEngine.GameObject go) => STRINGS.UI.StripLinkFormatting(go.GetProperName());
 
+        static string Where(JObject c) => c["targets"] is JArray t && t.Count > 0 ? $"{t.Count} buildings" : $"the building at {c["x"]},{c["y"]}";
+
         static string Describe(JObject c)
         {
             string why = (string)c["why"];
@@ -267,8 +362,9 @@ namespace OniAdvisor
             {
                 case "research": what = $"Research {c["tech"]}"; break;
                 case "skill": what = $"{c["dupe"]} learns {c["skill"]}"; break;
-                case "priority": what = $"Set priority {c["priority"]} on the building at {c["x"]},{c["y"]}"; break;
-                case "enable": what = $"{((bool?)c["on"] ?? true ? "Enable" : "Disable")} the building at {c["x"]},{c["y"]}"; break;
+                case "priority": what = $"Set priority {c["priority"]} on " + Where(c); break;
+                case "enable": what = $"{((bool?)c["on"] ?? true ? "Enable" : "Disable")} " + Where(c); break;
+                case "cancel": what = $"Cancel {string.Join("/", (c["what"] as JArray)?.Select(w => (string)w) ?? new[] { "all" })} errands in x{c["x0"]}-{c["x1"]}, y{c["y0"]}-{c["y1"]}"; break;
                 case "storageFilter": what = $"Change the storage filter at {c["x"]},{c["y"]}"; break;
                 case "placeProject": what = $"Place build orders for project {c["project"]}"; break;
                 default: what = (string)c["action"]; break;

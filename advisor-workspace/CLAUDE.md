@@ -201,6 +201,30 @@ the map until replaced, so clear old ones when the topic changes. Kinds:
 - `tone`: `problem` (red), `build` (green: build/dig/do this), `check` (yellow: look at this), `info` (cyan,
   default). `color: "#RRGGBB"` overrides.
 
+**Pins: suggestions the player can act on with one click.** Write `live/pins.json` (whole file; keep the
+pins still relevant) when you have a concrete, local fix the player may simply want done:
+```json
+{ "pins": [ { "id": "c50-terrariums", "x": 158, "y": 188, "tone": "check",
+    "title": "4 idle terrariums",
+    "text": "They have no algae or water and only take dupe time. Switch them off until you can feed them.",
+    "highlight": [155, 187, 162, 188],
+    "actions": [ { "label": "Turn them off",
+                   "command": { "action": "enable", "targets": [[155,187],[157,187],[159,187],[161,187]], "on": false } } ] },
+  { "id": "c50-mop", "x": 112, "y": 194, "tone": "problem", "title": "Mopping while hungry",
+    "text": "Five dupes are mopping a spill from the washroom.",
+    "actions": [ { "label": "Cancel these mop jobs",
+                   "command": { "action": "cancel", "x0": 107, "y0": 193, "x1": 116, "y1": 196, "what": ["mop"] } } ] } ] }
+```
+The game shows a round button at (x, y) in the tone's colour; clicking it opens a card below it with the
+title, text, the actions as buttons, ASK and DISMISS (`highlight` sketches a box around that area while it
+is open). An action is any command from "Delegated commands" below; it runs as soon as the player clicks
+it, whatever the delegation setting, because the click is their decision. Rules: check the facts first
+(the targets must be the right buildings), make each action do exactly what its label says, give every
+pin a stable unique `id` (a done or dismissed id stays hidden), use few pins (the most useful three or
+four, ten at most), and prefer a pin over telling the player to do a fiddly thing by hand. What they did
+with your pins arrives in the next message ("the player clicked …", "dismissed …"); the full record is in
+`live/pins-status.json`.
+
 Projects — write `live/projects/projects.json` (whole file; keep existing projects you still want):
 ```json
 { "projects": [ { "id": "h2", "name": "Hydrogen power", "purpose": "burn electrolyzer hydrogen",
@@ -251,7 +275,9 @@ a sentence or two: what it does, what the player must decide.
 
 Write one file per command into `live/commands/inbox/` (any unique name, `.json`):
 `research` {"tech"}, `skill` {"dupe","skill"}, `priority` {"x","y","priority"}, `enable` {"x","y","on"},
-`storageFilter` {"x","y","set"|"add"|"remove": [item names]}, `placeProject` {"project","priority"}.
+`storageFilter` {"x","y","set"|"add"|"remove": [item names]}, `placeProject` {"project","priority"},
+`cancel` {"x0","y0","x1","y1","what": ["mop","dig","build","deconstruct"]} (errands in that area).
+`priority` and `enable` also take `"targets": [[x,y], ...]` instead of x, y, for several buildings at once.
 Always include `"why"`. The mod applies its permission per category (off / ask / auto); check
 `commands/results/<id>.json` afterwards. Never send commands for a category that is `off` — say what
 you would do instead.

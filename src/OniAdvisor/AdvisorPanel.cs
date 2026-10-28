@@ -58,6 +58,15 @@ namespace OniAdvisor
 
         public static void Open(bool chat = true) => Show(chat ? Page.Chat : Page.Briefings, null);
 
+        /// <summary>Opens the main chat with the input box already started (e.g. "About the pin ...: ").</summary>
+        public static void OpenWithText(string text)
+        {
+            Show(Page.Chat, null);
+            if (input == null) return;
+            input.text = text;
+            input.caretPosition = text.Length;
+        }
+
         /// <summary>Opens the chat on a thread (a tip's, a briefing's, an answer's, or "plan").</summary>
         public static void OpenThread(string id) => Show(Page.Chat, id);
 

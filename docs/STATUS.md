@@ -89,6 +89,13 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Pins** (`Pins.cs`): the advisor writes `live/pins.json` (id, x, y, tone, title, text, highlight, actions with
+  commands). Round tone-coloured buttons follow the camera on the HUD canvas; a click opens a card below
+  with the actions, ASK (opens the chat with "About the pin …") and DISMISS. Actions run through
+  `Commands.RunByPlayer` regardless of delegation (the click is the approval). Outcomes and dismissals go to
+  `live/pins-status.json`; done/dismissed ids stay hidden; the companion tells the advisor what happened
+  (`PinNews`). New command options: `targets` for priority/enable, `cancel` (mop/dig/build/deconstruct
+  errands in an area, category `errands`). Pins hide during briefings and planning mode.
 - **Thinking show** (`ThinkingShow.cs` in the companion, `ThinkingView.cs` in the mod; option `ShowThinking` =
   captions | camera | off): during turns the player started, every MapQuery with coordinates becomes a
   `live/think.json` look event (area, overlay from the query layer, the advisor's preceding sentence or the

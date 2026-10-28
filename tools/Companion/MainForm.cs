@@ -669,6 +669,36 @@ public sealed class MainForm : Form
     }
 
     string? lastAdviceLevel;
+    string lastPinEvent = "";
+    readonly DateTime startedUtc = DateTime.UtcNow;
+
+    /// <summary>What the player did with the advisor's pins since the last message (live/pins-status.json, written by the mod).</summary>
+    string PinNews()
+    {
+        try
+        {
+            var f = Path.Combine(liveDir, "pins-status.json");
+            if (!File.Exists(f)) return "";
+            var events = JsonNode.Parse(File.ReadAllText(f))?["events"]?.AsArray();
+            if (events == null || events.Count == 0) return "";
+            var lines = new List<string>();
+            bool after = false;
+            foreach (var e in events)
+            {
+                string key = (string?)e?["utc"] ?? "";
+                // First time: only what happened since this app started (older events were told to an earlier run).
+                if (lastPinEvent.Length == 0) after = DateTime.TryParse(key, null, global::System.Globalization.DateTimeStyles.RoundtripKind, out var at) && at.ToUniversalTime() > startedUtc;
+                if (!after) { if (key == lastPinEvent) after = true; continue; }
+                string title = (string?)e?["title"] ?? "?";
+                lines.Add((string?)e?["what"] == "dismissed"
+                    ? $"- the player dismissed your pin \"{title}\""
+                    : $"- the player clicked \"{(string?)e?["action"]}\" on your pin \"{title}\": {(string?)e?["result"]}");
+            }
+            lastPinEvent = (string?)events[^1]?["utc"] ?? lastPinEvent;
+            return lines.Count == 0 ? "" : "\n" + string.Join("\n", lines.TakeLast(10));
+        }
+        catch { return ""; }
+    }
 
     /// <summary>
     /// A briefing is checked before the player sees it: the advisor drafts it (live/briefing/draft.json), then
@@ -751,7 +781,7 @@ public sealed class MainForm : Form
             string recent = convo.Recent(20, 8000);
             if (recent.Length > 0) sb.AppendLine("(New conversation. What you and the player said earlier, oldest first:)\n" + recent);
         }
-        string updates = watch.Take();
+        string updates = watch.Take() + PinNews();
         if (updates.Length > 0) sb.AppendLine("Since your last message, in the game:\n" + updates);
         sb.AppendLine("Player's view: " + view);
         if (!string.IsNullOrWhiteSpace(facts)) sb.AppendLine("Fetched from the game just now:\n" + facts.TrimEnd());
