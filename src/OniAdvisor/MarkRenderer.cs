@@ -27,6 +27,9 @@ namespace OniAdvisor
 
         public MarkRenderer(string name) { this.name = name; }
 
+        /// <summary>Labels as UI chips (MarkChips) instead of world text: readable, styled, and clickable.</summary>
+        public bool ChipLabels;
+
         static float Z => Grid.GetLayerZ(Grid.SceneLayer.FXFront2) - 0.5f;
 
         static Sprite White
@@ -62,11 +65,13 @@ namespace OniAdvisor
             {
                 visible = value;
                 foreach (var go in objects) if (go != null) go.SetActive(value);
+                MarkChips.SetVisible(this, value);
             }
         }
 
         public void Clear()
         {
+            MarkChips.Clear(this);
             foreach (var go in objects) if (go != null) Object.Destroy(go);
             objects.Clear();
         }
@@ -180,9 +185,10 @@ namespace OniAdvisor
             go.transform.localScale = new Vector3(s, s, 1f);
         }
 
-        public void Label(float cx, float cy, string text, Color c, float tiltDegrees = 0f)
+        public void Label(float cx, float cy, string text, Color c, float tiltDegrees = 0f, System.Action onClick = null)
         {
             if (string.IsNullOrEmpty(text)) return;
+            if (ChipLabels) { MarkChips.Add(this, cx, cy, text, c, onClick, visible); return; }
             var go = New("label");
             go.transform.position = new Vector3(cx, cy, Z - 0.03f);
             if (tiltDegrees != 0f) go.transform.rotation = Quaternion.Euler(0f, 0f, tiltDegrees);

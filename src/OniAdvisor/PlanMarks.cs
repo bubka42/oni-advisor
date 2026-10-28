@@ -20,6 +20,7 @@ namespace OniAdvisor
         public string Kind = "area";  // area | line | point | path | arrow | outline
         public int X0, Y0, X1, Y1;
         public string Label;
+        public string Note;  // advisor marks: what the chip shows when clicked (else the message that drew the marks)
         public string Color; // optional "#RRGGBB" for advisor marks
         public string Tone;  // problem | build | check | info (advisor marks)
         public bool Arrow;   // path: arrow head at the last point
@@ -42,6 +43,7 @@ namespace OniAdvisor
             X1 = (int?)t["x1"] ?? (int?)t["x0"] ?? (int?)t["x"] ?? 0,
             Y1 = (int?)t["y1"] ?? (int?)t["y0"] ?? (int?)t["y"] ?? 0,
             Label = (string)t["label"],
+            Note = (string)t["note"],
             Color = (string)t["color"],
             Tone = ((string)t["tone"])?.ToLowerInvariant(),
             Arrow = (bool?)t["arrow"] ?? false,
@@ -81,7 +83,7 @@ namespace OniAdvisor
         public static bool PlayerDirty;
 
         static readonly MarkRenderer playerLayer = new MarkRenderer("player-marks");
-        static readonly MarkRenderer advisorLayer = new MarkRenderer("advisor-marks");
+        static readonly MarkRenderer advisorLayer = new MarkRenderer("advisor-marks") { ChipLabels = true };
         static readonly MarkRenderer previewLayer = new MarkRenderer("preview");
         static System.DateTime advisorFileTime;
 
@@ -211,8 +213,33 @@ namespace OniAdvisor
             foreach (var m in Advisor)
             {
                 var line = ParseColor(m.Color, ToneColor(m.Tone));
-                Draw(advisorLayer, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
+                var mark = m;
+                Draw(advisorLayer, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true, onClick: () => ShowMarkSource(mark));
             }
+        }
+
+        /// <summary>
+        /// A click on an advisor mark's label: its own note if it has one, else the advisor's message that drew
+        /// the marks (the companion records it in plan/advisor-marks-source.json), in the advisor card with REPLY.
+        /// </summary>
+        static void ShowMarkSource(Mark m)
+        {
+            long chat = 0;
+            string message = null;
+            try
+            {
+                var src = Path.Combine(Paths.Sub("plan"), "advisor-marks-source.json");
+                if (File.Exists(src)) chat = (long?)JObject.Parse(File.ReadAllText(src))["chat"] ?? 0;
+                var chatFile = Path.Combine(Paths.Sub("chat"), "chat.json");
+                if (chat > 0 && File.Exists(chatFile))
+                    message = (string)JArray.Parse(File.ReadAllText(chatFile)).FirstOrDefault(e => (long?)e["n"] == chat)?["text"];
+            }
+            catch { }
+            string head = string.IsNullOrEmpty(m.Label) ? "" : $"**{m.Label}**\n";
+            string text = !string.IsNullOrEmpty(m.Note) ? head + m.Note
+                : message != null ? head + message
+                : head + "The advisor drew this without a message. Ask about it with REPLY.";
+            AdvisorCard.Show(null, text, chat, spoken: false);
         }
 
         /// <summary>Draws marks in the advisor's style (cyan unless a mark has its own colour) onto a layer.</summary>
@@ -230,17 +257,17 @@ namespace OniAdvisor
             }
         }
 
-        static void Draw(MarkRenderer r, Mark m, Color fill, Color line, bool showLabel)
+        static void Draw(MarkRenderer r, Mark m, Color fill, Color line, bool showLabel, System.Action onClick = null)
         {
             string tag = m.By == "advisor" ? $"A{m.Id}" : $"#{m.Id}";
             string label = showLabel ? (string.IsNullOrEmpty(m.Label) ? tag : $"{tag} {m.Label}") : null;
             // The advisor's marks look hand-drawn (unless the player chose clean marks); the player's stay geometric.
-            if (m.By == "advisor" && Prefs.SketchMarks) { DrawSketch(r, m, line, label); return; }
+            if (m.By == "advisor" && Prefs.SketchMarks) { DrawSketch(r, m, line, label, onClick); return; }
             switch (m.Kind)
             {
                 case "point":
                     r.Dot(m.X0, m.Y0, line, 0.7f);
-                    if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 1.6f, label, line);
+                    if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 1.6f, label, line, 0f, onClick);
                     break;
                 case "path":
                 case "arrow":
@@ -250,7 +277,7 @@ namespace OniAdvisor
                     if (m.Kind == "arrow" || m.Arrow)
                         r.ArrowHead(pts[pts.Count - 2].x + 0.5f, pts[pts.Count - 2].y + 0.5f, pts[pts.Count - 1].x + 0.5f, pts[pts.Count - 1].y + 0.5f, line);
                     else foreach (var p in pts) r.Dot(p.x, p.y, line, 0.35f);
-                    if (label != null) r.Label(pts[0].x + 0.5f, pts[0].y + 1.6f, label, line);
+                    if (label != null) r.Label(pts[0].x + 0.5f, pts[0].y + 1.6f, label, line, 0f, onClick);
                     break;
                 case "outline":
                     int cell = Grid.XYToCell(m.X0, m.Y0);
@@ -260,16 +287,16 @@ namespace OniAdvisor
                     if (bld != null) { var e = bld.GetExtents(); ox0 = e.x; oy0 = e.y; ox1 = e.x + e.width - 1; oy1 = e.y + e.height - 1; }
                     r.Rect(ox0, oy0, ox1, oy1, new Color(line.r, line.g, line.b, 0.12f));
                     r.Outline(ox0, oy0, ox1, oy1, line);
-                    if (label != null) r.Label((ox0 + ox1 + 1) / 2f, oy1 + 1.6f, label, line);
+                    if (label != null) r.Label((ox0 + ox1 + 1) / 2f, oy1 + 1.6f, label, line, 0f, onClick);
                     break;
                 case "line":
                     foreach (var (x, y) in m.LineCells()) r.Rect(x, y, x, y, new Color(line.r, line.g, line.b, 0.45f));
-                    if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line);
+                    if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line, 0f, onClick);
                     break;
                 default:
                     r.Rect(m.X0, m.Y0, m.X1, m.Y1, fill);
                     r.Outline(m.X0, m.Y0, m.X1, m.Y1, line);
-                    if (label != null) r.Label((Math.Min(m.X0, m.X1) + Math.Max(m.X0, m.X1) + 1) / 2f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line);
+                    if (label != null) r.Label((Math.Min(m.X0, m.X1) + Math.Max(m.X0, m.X1) + 1) / 2f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line, 0f, onClick);
                     break;
             }
         }
@@ -278,7 +305,7 @@ namespace OniAdvisor
         /// The hand-drawn version: a point or a building gets circled, an area gets a quickly sketched box over a
         /// light wash, a line (shaft/route) a translucent marker stroke, a path or arrow a bowed pen line.
         /// </summary>
-        static void DrawSketch(MarkRenderer r, Mark m, Color line, string label)
+        static void DrawSketch(MarkRenderer r, Mark m, Color line, string label, System.Action onClick)
         {
             var rng = Sketch.Rng(Sketch.Seed(m));
             float tilt = ((float)rng.NextDouble() - 0.5f) * 6f;
@@ -287,7 +314,7 @@ namespace OniAdvisor
             {
                 case "point":
                     r.Stroke(Sketch.Circle(new Vector2(m.X0 + 0.5f, m.Y0 + 0.5f), 1.15f, 1.0f, rng), line, 0.2f);
-                    if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 2.1f, label, line, tilt);
+                    if (label != null) r.Label(m.X0 + 0.5f, m.Y0 + 2.1f, label, line, tilt, onClick);
                     break;
                 case "path":
                 case "arrow":
@@ -298,7 +325,7 @@ namespace OniAdvisor
                         r.Stroke(stroke, line, 0.22f);
                         if (m.Kind == "arrow" || m.Arrow)
                             foreach (var head in Sketch.ArrowHead(stroke[Math.Max(0, stroke.Count - 4)], stroke[stroke.Count - 1], rng)) r.Stroke(head, line, 0.2f);
-                        if (label != null) r.Label(pts[0].x, pts[0].y + 1.6f, label, line, tilt);
+                        if (label != null) r.Label(pts[0].x, pts[0].y + 1.6f, label, line, tilt, onClick);
                         break;
                     }
                 case "outline":
@@ -309,7 +336,7 @@ namespace OniAdvisor
                         float l = m.X0, b = m.Y0, w = 1, h = 1;
                         if (bld != null) { var e = bld.GetExtents(); l = e.x; b = e.y; w = e.width; h = e.height; }
                         r.Stroke(Sketch.Circle(new Vector2(l + w / 2f, b + h / 2f), w / 2f + 0.9f, h / 2f + 0.9f, rng), line, 0.22f);
-                        if (label != null) r.Label(l + w / 2f, b + h + 1.9f, label, line, tilt);
+                        if (label != null) r.Label(l + w / 2f, b + h + 1.9f, label, line, tilt, onClick);
                         break;
                     }
                 case "line":
@@ -317,7 +344,7 @@ namespace OniAdvisor
                         var a = new Vector2(m.X0 + 0.5f, m.Y0 + 0.5f);
                         var c = new Vector2(m.X1 + 0.5f, m.Y1 + 0.5f);
                         r.Stroke(Sketch.Line(a, c, rng, bow: false), new Color(line.r, line.g, line.b, 0.4f), 0.9f); // highlighter
-                        if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line, tilt);
+                        if (label != null) r.Label(m.X0 + 0.5f, Math.Max(m.Y0, m.Y1) + 1.6f, label, line, tilt, onClick);
                         break;
                     }
                 default:
@@ -325,7 +352,7 @@ namespace OniAdvisor
                         int x0 = Math.Min(m.X0, m.X1), x1 = Math.Max(m.X0, m.X1), y0 = Math.Min(m.Y0, m.Y1), y1 = Math.Max(m.Y0, m.Y1);
                         r.Rect(x0, y0, x1, y1, wash);
                         foreach (var side in Sketch.Box(x0, y0, x1 + 1, y1 + 1, rng)) r.Stroke(side, line, 0.18f);
-                        if (label != null) r.Label((x0 + x1 + 1) / 2f, y1 + 1.7f, label, line, tilt);
+                        if (label != null) r.Label((x0 + x1 + 1) / 2f, y1 + 1.7f, label, line, tilt, onClick);
                         break;
                     }
             }

@@ -89,6 +89,16 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Colonies** (`ColonyFiles.cs`, companion `CheckColony`): on load, the previous colony's advisor files move from
+  live/ to advisor/colonies/<colony>/ and the loaded colony's come back; live/colony.json names the colony.
+  The companion keeps a session per colony (`ColonySessions`), resumes it or starts fresh, and re-reads the
+  chat and conversation logs. player.md, custom instructions and settings are shared.
+- **Mark labels as chips** (`MarkChips.cs`): advisor and briefing mark labels are UI chips (slate, tone edge)
+  that follow the camera; advisor chips open the mark's `note` or the message that drew the marks
+  (`plan/advisor-marks-source.json`, written by the companion) in the advisor card.
+- **Card restyle**: the tip/answer card now matches the briefing caption (pink bar, header font, slate body,
+  24 px text typing out); urgency is a small coloured box. The projects list steps aside while a build
+  menu category or a building's details are open.
 - **Projects as quests** (`QuestStore.cs`, `QuestPanel.cs`, companion `Quests.cs`): the advisor proposes in
   `live/quests.json` (id, title, kind infrastructure|colony, horizon short|long, why, milestones with optional
   looksDone, linked blueprint `project`, `advice`, status proposed|scrapped); the player's decisions live in

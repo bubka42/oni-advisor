@@ -87,7 +87,7 @@ namespace OniAdvisor
                         string via = (string)o["via"] ?? "";
                         // Tips, and answers to questions asked outside the panel, get a card; panel answers are in the panel.
                         if (level != "critical" && !AdvisorPanel.IsOpen && (level != null || via != "panel"))
-                            AdvisorCard.Show(level, full, (long?)o["chat"] ?? 0);
+                            AdvisorCard.Show(level, full, (long?)o["chat"] ?? 0, spoken: level != "later");
                         break;
                     default: SetIdle(); break;
                 }

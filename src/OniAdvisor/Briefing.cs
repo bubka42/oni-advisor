@@ -40,7 +40,7 @@ namespace OniAdvisor
         static int current;
         static float advanceAt = -1f;
 
-        static readonly MarkRenderer stepLayer = new MarkRenderer("briefing");
+        static readonly MarkRenderer stepLayer = new MarkRenderer("briefing") { ChipLabels = true };
         static RectTransform panel, list;
         static TextMeshProUGUI headerText, footerText;
 

@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); QuestPanel.Destroy(); QuestStore.Clear(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); MarkChips.Destroy(); QuestPanel.Destroy(); QuestStore.Clear(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -53,6 +53,7 @@ namespace OniAdvisor
             {
                 try
                 {
+                    ColonyFiles.Switch(); // this colony's advisor files into live/, before anything reads them
                     MapMemory.Init(); // also loads config.json
                     PlanMarks.LoadPlayer();
                     Overlays.Apply();
@@ -66,6 +67,7 @@ namespace OniAdvisor
             Guard("memory tick", () => MapMemory.Current?.Tick(now));
             Guard("hud", AdvisorHud.Tick);
             Guard("advisor card", AdvisorCard.Tick);
+            Guard("mark chips", MarkChips.Tick);
             Guard("overlay", () => Overlays.Tick(now));
             Guard("briefing", () => Briefing.Tick(now));
             Guard("advisor panel", () => AdvisorPanel.Tick(now));

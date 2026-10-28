@@ -11,7 +11,8 @@ namespace OniAdvisor
     /// DONE; each project folds open to its reason, the advisor's advice, its milestones (click a box to tick
     /// it) and its buttons (accept / decline, hold / abandon / resume, its blueprint, DISCUSS). Every project
     /// and milestone has its own thread in the advisor panel ("quest:ID", "quest:ID:MILESTONE").
-    /// Hidden during briefings and planning mode, and while there is nothing to show.
+    /// Hidden during briefings and planning mode, while the game's build menu or a building's details are
+    /// open (they use the same side of the screen), and while there is nothing to show.
     /// UNTESTED IN GAME.
     /// </summary>
     internal static class QuestPanel
@@ -31,7 +32,7 @@ namespace OniAdvisor
         public static void Tick()
         {
             var visible = QuestStore.All.Where(q => Sections.Any(s => s.status == q.Status)).ToList();
-            bool show = visible.Count > 0 && !Briefing.IsOpen && !PlanMode.Active;
+            bool show = visible.Count > 0 && !Briefing.IsOpen && !PlanMode.Active && !GamePanelsOpen();
             if (!show) { if (root != null) root.gameObject.SetActive(false); return; }
             Build();
             if (root == null) return;
@@ -39,6 +40,22 @@ namespace OniAdvisor
             if (drawnVersion == QuestStore.Version) return;
             drawnVersion = QuestStore.Version;
             Redraw(visible);
+        }
+
+        /// <summary>
+        /// The game's own panels on the left of the screen are open: a build menu category (it opens upwards from the
+        /// toolbar at the bottom left) or a selected building's details. The list steps aside while they are.
+        /// </summary>
+        static bool GamePanelsOpen()
+        {
+            try
+            {
+                var plan = PlanScreen.Instance;
+                if (plan != null && HarmonyLib.Traverse.Create(plan).Field("activeCategoryInfo").GetValue() != null) return true;
+                var details = DetailsScreen.Instance;
+                return details != null && details.target != null && details.gameObject.activeInHierarchy;
+            }
+            catch { return false; }
         }
 
         static void Redraw(List<QuestStore.Quest> visible)

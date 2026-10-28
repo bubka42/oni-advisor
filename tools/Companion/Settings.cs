@@ -36,6 +36,8 @@ public sealed class Settings
     public string HotkeyPreset { get; set; } = "standard"; // standard | simple | custom (read by the mod)
     public Dictionary<string, string>? Hotkeys { get; set; } // custom bindings {action: "Ctrl+Shift+T"} (read by the mod)
     public string? CustomPromptSent { get; set; }     // the custom instructions (custom-prompt.md) the current conversation has seen
+    public string? CurrentColony { get; set; }        // the colony the current conversation (SessionId) belongs to
+    public Dictionary<string, string>? ColonySessions { get; set; } // colony -> its advisor conversation (Claude Code session id)
     public int TimeoutSeconds { get; set; } = 300;
 
     [JsonIgnore] public string FilePath { get; private set; } = "";

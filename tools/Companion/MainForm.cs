@@ -21,10 +21,10 @@ public sealed class MainForm : Form
     readonly SpeechInput speech;
     readonly AdvisorSession advisor;
     readonly GameWatch watch;
-    readonly ChatLog chat;
+    ChatLog chat;         // recreated when the colony changes (its files are swapped by the mod)
     readonly ThinkingShow show;
-    readonly Quests quests;
-    readonly ConversationLog convo;
+    Quests quests;
+    ConversationLog convo;
 
     readonly RichTextBox log = new() { ReadOnly = true, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(24, 26, 30), ForeColor = Color.Gainsboro, Font = new Font("Segoe UI", 10f) };
     readonly TextBox input = new() { Multiline = true, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10f), AcceptsReturn = false };
@@ -534,6 +534,7 @@ public sealed class MainForm : Form
 
     async Task Ask(string trigger, string? text, JsonObject? req)
     {
+        CheckColony();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
         string? thread = (string?)req?["thread"];
         bool unasked = trigger is "update" or "review";
@@ -561,6 +562,7 @@ public sealed class MainForm : Form
         var before = File.Exists(briefingFile) ? File.GetLastWriteTimeUtc(briefingFile) : DateTime.MinValue;
         var draftBefore = File.Exists(draftFile) ? File.GetLastWriteTimeUtc(draftFile) : DateTime.MinValue;
 
+        var turnStartUtc = DateTime.UtcNow;
         cts ??= new CancellationTokenSource();
         string prompt = BuildPrompt(trigger, text, req, view, facts, thread);
         if (!unasked && settings.ShowThinking != "off") show.Begin(); // the player is waiting: let them watch it look
@@ -616,6 +618,7 @@ public sealed class MainForm : Form
             if (settings.AdviceLevel == "minimal" && level != "critical") level = null;
         }
         long entry = chat.Add(level != null ? "tip-" + level : "advisor", answer, cycle, thread);
+        RecordMarksSource(turnStartUtc, entry);
         if (level != null) Tips.Add(liveDir, level, answer, cycle, entry);
         chat.Stream("idle");
         Append(level != null ? $"Tip ({level})" : "Advisor", answer, level == "critical" ? Color.Salmon : level == "urgent" ? Color.Orange : Color.PaleGreen);
@@ -646,6 +649,7 @@ public sealed class MainForm : Form
     /// </summary>
     void FollowGame()
     {
+        CheckColony();
         bool fresh = watch.Poll();
         if (settings.Proactive == "never" || advisor.Busy) return;
         // The advice level narrows (or widens) what the advisor may bring up unasked.
@@ -675,6 +679,62 @@ public sealed class MainForm : Form
     }
 
     string? lastAdviceLevel;
+    string colonyName = "";
+
+    /// <summary>
+    /// One advisor conversation per colony. The mod swaps the colony's files into live/ when a save loads and
+    /// names the colony in live/colony.json; when that changes, the current conversation is filed under its
+    /// colony, and the loaded colony's own conversation resumes (or a fresh one starts). The chat and
+    /// conversation logs are re-read, since their files were swapped. Shared across colonies: player.md and the
+    /// custom instructions, which the advisor reads in every conversation.
+    /// </summary>
+    void CheckColony()
+    {
+        string? key = null;
+        try
+        {
+            var f = Path.Combine(liveDir, "colony.json");
+            if (File.Exists(f)) { var o = JsonNode.Parse(File.ReadAllText(f)); key = (string?)o?["key"]; colonyName = (string?)o?["name"] ?? key ?? ""; }
+        }
+        catch { }
+        if (key == null || key == settings.CurrentColony || advisor.Busy) return;
+        settings.ColonySessions ??= new Dictionary<string, string>();
+        if (settings.CurrentColony == null)
+        {
+            // First run with per-colony conversations: the conversation so far belongs to this colony.
+            if (settings.SessionId != null) settings.ColonySessions[key] = settings.SessionId;
+            settings.CurrentColony = key;
+            settings.Save();
+            return;
+        }
+        if (settings.SessionId != null) settings.ColonySessions[settings.CurrentColony] = settings.SessionId;
+        advisor.Stop();
+        settings.SessionId = settings.ColonySessions.TryGetValue(key, out var sid) ? sid : null;
+        settings.CurrentColony = key;
+        settings.CustomPromptSent = null; // a different conversation: it hasn't seen the custom instructions
+        settings.Save();
+        chat = new ChatLog(liveDir);
+        convo = new ConversationLog(liveDir);
+        quests = new Quests(liveDir);
+        quests.News();
+        lastPinEvent = "";
+        System($"Colony: {colonyName} ({(sid != null ? "resuming its conversation" : "a fresh conversation")}).");
+        _ = Task.Run(advisor.WarmUp);
+    }
+
+    /// <summary>The advisor drew marks during this turn: remember which chat message they belong to (the game's mark labels open it).</summary>
+    void RecordMarksSource(DateTime turnStartUtc, long chatEntry)
+    {
+        try
+        {
+            var marks = Path.Combine(liveDir, "plan", "advisor-marks.json");
+            if (!File.Exists(marks) || File.GetLastWriteTimeUtc(marks) < turnStartUtc) return;
+            var src = Path.Combine(liveDir, "plan", "advisor-marks-source.json");
+            File.WriteAllText(src + ".tmp", JsonSerializer.Serialize(new { chat = chatEntry, utc = DateTime.UtcNow.ToString("o") }));
+            File.Move(src + ".tmp", src, overwrite: true);
+        }
+        catch { }
+    }
     string lastPinEvent = "";
     readonly DateTime startedUtc = DateTime.UtcNow;
 
@@ -774,7 +834,7 @@ public sealed class MainForm : Form
         var sb = new global::System.Text.StringBuilder();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
         string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : "companion");
-        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}] [advice level: {settings.AdviceLevel}]" + (thread != null ? $" [thread: {thread}]" : ""));
+        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}] [advice level: {settings.AdviceLevel}]" + (colonyName.Length > 0 ? $" [colony: {colonyName}]" : "") + (thread != null ? $" [thread: {thread}]" : ""));
         if (settings.AdviceLevel != lastAdviceLevel)
         {
             // Said once when it changes; CLAUDE.md ("Advice level") has what each level means.
