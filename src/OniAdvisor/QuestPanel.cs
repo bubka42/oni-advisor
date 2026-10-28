@@ -139,7 +139,11 @@ namespace OniAdvisor
             var b = rt.gameObject.AddComponent<Button>();
             b.targetGraphic = img;
             b.onClick.AddListener(onClick);
-            var t = OniStyle.Label(rt, text, size, header: header, color: color, align: TextAlignmentOptions.MidlineLeft);
+            // One drawable per object: the label lives in a child, and the row's layout takes its height from it.
+            var lay = rt.gameObject.AddComponent<VerticalLayoutGroup>();
+            lay.childControlWidth = lay.childControlHeight = true; lay.childForceExpandHeight = false; lay.padding = new RectOffset(0, 0, 1, 1);
+            var lt = OniStyle.Rect("label", rt);
+            var t = OniStyle.Label(lt, text, size, header: header, color: color, align: TextAlignmentOptions.MidlineLeft);
             t.richText = true;
         }
 
