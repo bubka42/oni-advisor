@@ -337,6 +337,7 @@ public sealed class MainForm : Form
         {
             case "autosave" when settings.AutoBriefOnAutosave && settings.AdviceLevel != "minimal": Enqueue("autosave", null, req); break;
             case "pod" when settings.AutoPodPick: Enqueue("pod", null, req); break;
+            case "guide": Enqueue("guide", null, req); break;
             case "plan" when settings.AutoReviewPlan: Enqueue("plan", TakeInput(), req); break;
             case "hotkey" when settings.AutoLookOnHotkey: Enqueue("hotkey", TakeInput(), req); break;
             case "voice-start": StartListening(); break;
@@ -517,6 +518,7 @@ public sealed class MainForm : Form
             "autosave" => "New cycle — asking for a briefing…",
             "pod" => "Printing Pod — asking for a pick…",
             "plan" => "Your sketch — asking for a review…",
+            "guide" => "Guided planning — asking for a layout…",
             "hotkey" => "Look request — asking the advisor…",
             "briefing" => "Asking for a briefing…",
             _ => "Asking…",
@@ -608,8 +610,8 @@ public sealed class MainForm : Form
         string spoken = Spoken(answer);
         if (settings.Speak && trigger is not "autosave" and not "briefing" && level != "later" && !(unasked && level == null)) voice.Speak(spoken);
         LogAnswer(text ?? $"({trigger})", answer);
-        convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", "review" => "plan review", _ => thread != null ? "thread" : "live" }, cycle,
-                  text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "update" or "review" => "(nothing asked)", _ => "" }, answer);
+        convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", "review" => "plan review", "guide" => "guided plan", _ => thread != null ? "thread" : "live" }, cycle,
+                  text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "guide" => $"(asked for a layout around a {(string?)req?["name"]} at {(int?)req?["x"]},{(int?)req?["y"]})", "update" or "review" => "(nothing asked)", _ => "" }, answer);
         WriteStatus("replied", spoken);
     }
 
@@ -733,6 +735,14 @@ public sealed class MainForm : Form
             case "pod":
                 sb.AppendLine("The Printing Pod selection is open: recommend one option from live/pod.json, briefly saying why.");
                 break;
+            case "guide":
+                {
+                    string name = (string?)req?["name"] ?? (string?)req?["prefab"] ?? "building";
+                    sb.AppendLine($"GUIDED PLANNING: the player is holding a {name} (prefab {(string?)req?["prefab"]}, rotation {(string?)req?["rotation"]}) in the build tool at ({(int?)req?["x"]}, {(int?)req?["y"]}) and pressed Ctrl+Shift+G: lay out everything it needs around that spot (see CLAUDE.md, \"Guided planning\"). " +
+                        ((bool?)req?["another"] == true ? "They asked for ANOTHER layout: make it genuinely different from your previous one (other placement or approach). " : "") +
+                        "Look at the area first (MapQuery region/buildings/pipes/ports/rates around it). Write the layout as the project with id \"guide\" in live/projects/projects.json (replace any earlier \"guide\" project, keep the others), with the held building as an item at (or within a tile or two of) that spot. Check live/projects/projects-status.json and fix anything blocked. Then reply in one or two sentences: what the layout does, and anything the player must decide or watch out for.");
+                    break;
+                }
             case "plan":
                 sb.AppendLine("Review the player's sketch in live/plan/player-marks.json (they call marks #1, #2, ...); draw corrections as advisor marks.");
                 break;

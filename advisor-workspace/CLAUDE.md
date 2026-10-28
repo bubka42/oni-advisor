@@ -231,6 +231,22 @@ waits and is placed when its way clears. So design whole, self-contained layouts
 farm room with its pipes and power) and mention they can be stamped. The player places blueprints by
 hand by default; only use `placeProject` yourself if they ask or the `projects` delegation is on.
 
+### Guided planning
+
+Trigger `guide`: the player is holding a building in the game's build tool and wants you to lay out
+what it needs around that spot. Write the project `"id": "guide"` (replacing any earlier one) with the
+held building at that spot plus everything that makes it work:
+- **Inputs and outputs**: where its gas/liquid/solid comes from (a pump in the right pocket, a filter if
+  the source is mixed), where its products go (vents, storage, the next machine), with the pipe or rail
+  runs between them. Check the actual gases and liquids nearby with MapQuery, not what should be there.
+- **Power and automation**: a wire run to the nearest suitable circuit (heavy wire if the load is
+  large), a battery or a smart battery's automation if it is a generator.
+- **Access**: ladders or tiles the dupes need to build and operate it.
+Keep it compact and plausible, use the fewest pieces that work, and reuse existing networks where it
+makes sense (end a run on an existing pipe or wire to join it). The game shows it as ghosts with
+STAMP / PLACE / ANOTHER / DISCARD; for ANOTHER, change the approach, not just the coordinates. Reply in
+a sentence or two: what it does, what the player must decide.
+
 ## Delegated commands
 
 Write one file per command into `live/commands/inbox/` (any unique name, `.json`):

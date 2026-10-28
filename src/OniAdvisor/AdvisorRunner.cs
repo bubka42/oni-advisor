@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -91,6 +91,7 @@ namespace OniAdvisor
                 Guard("advisor marks", PlanMarks.PollAdvisorFile);
                 Guard("projects", ProjectStore.Poll);
                 Guard("waiting builds", BuildPlacer.Poll);
+                Guard("guided planning", GuidedPlan.Poll);
                 Guard("commands", Commands.Poll);
                 Guard("advisor status", AdvisorHud.PollStatus);
                 Guard("briefing poll", Briefing.Poll);
@@ -133,6 +134,7 @@ namespace OniAdvisor
             if (Input.GetKeyDown(KeyCode.P)) Guard("planning toggle", PlanMode.Toggle);
             if (Input.GetKeyDown(KeyCode.M)) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
             if (Input.GetKeyDown(KeyCode.N)) Guard("project focus", () => AdvisorHud.Show("Projects: " + ProjectStore.CycleFocus(), 2.5f));
+            if (Input.GetKeyDown(KeyCode.G)) Guard("guided planning", () => GuidedPlan.Ask());
             if (Input.GetKeyDown(KeyCode.X) && PlanMode.Active) Guard("clear marks", () => { PlanMarks.ClearPlayer(); AdvisorHud.Show("Your marks cleared", 2f); });
         }
 

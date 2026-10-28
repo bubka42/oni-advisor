@@ -17,7 +17,7 @@ namespace OniAdvisor
         public static StampTool Instance { get; private set; }
 
         static List<BuildPlacer.Piece> pieces = new List<BuildPlacer.Piece>();
-        static string name;
+        static string blueprintName;
         static int centreX, centreY;     // the layout's centre as planned; the cursor holds this point
         static int lastCell = Grid.InvalidCell;
         static readonly MarkRenderer preview = new MarkRenderer("stamp");
@@ -28,8 +28,8 @@ namespace OniAdvisor
         /// <summary>Picks up a project as a blueprint on the cursor.</summary>
         internal static bool Begin(string projectId)
         {
-            pieces = ProjectStore.Pieces(projectId, out name);
-            if (name == null || pieces.Count == 0) { AdvisorHud.Show("That project has nothing to place", 3f); return false; }
+            pieces = ProjectStore.Pieces(projectId, out blueprintName);
+            if (blueprintName == null || pieces.Count == 0) { AdvisorHud.Show("That project has nothing to place", 3f); return false; }
             var cells = pieces.SelectMany(p => p.Cells()).Where(Grid.IsValidCell).Select(Grid.CellToXY).ToList();
             if (cells.Count == 0) return false;
             centreX = (cells.Min(c => c.x) + cells.Max(c => c.x)) / 2;
@@ -37,7 +37,7 @@ namespace OniAdvisor
             lastCell = Grid.InvalidCell;
             if (Instance == null || PlayerController.Instance == null) { AdvisorHud.Show("The stamp tool isn't available", 3f); return false; }
             PlayerController.Instance.ActivateTool(Instance);
-            AdvisorHud.Show($"Blueprint: {name}. Click to place build orders, right-click or Esc to put it away", 6f);
+            AdvisorHud.Show($"Blueprint: {blueprintName}. Click to place build orders, right-click or Esc to put it away", 6f);
             return true;
         }
 
@@ -77,8 +77,8 @@ namespace OniAdvisor
             try
             {
                 var result = BuildPlacer.Place(Shifted(cell), 5);
-                AdvisorHud.Show($"{name}: {result}", 6f);
-                Log.Info($"stamped {name} at {Grid.CellToXY(cell)}: {result}");
+                AdvisorHud.Show($"{blueprintName}: {result}", 6f);
+                Log.Info($"stamped {blueprintName} at {Grid.CellToXY(cell)}: {result}");
                 lastCell = Grid.InvalidCell;
                 Draw(cell);
             }
@@ -128,7 +128,7 @@ namespace OniAdvisor
             }
             var c = Grid.CellToXY(cursorCell);
             string status = blocked > 0 ? $"{blocked} tile(s) blocked" : toDig > 0 ? $"{toDig} tile(s) to dig" : "fits";
-            preview.Label(c.x + 0.5f, top + 1.5f, $"{name}: {status}  (click to place, right-click to stop)", blocked > 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.7f, 1f, 0.6f));
+            preview.Label(c.x + 0.5f, top + 1.5f, $"{blueprintName}: {status}  (click to place, right-click to stop)", blocked > 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.7f, 1f, 0.6f));
         }
     }
 }

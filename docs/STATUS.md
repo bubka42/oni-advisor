@@ -89,6 +89,11 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Guided planning** (`GuidedPlan.cs`, companion trigger `guide`): Ctrl+Shift+G while holding a building in
+  the game's BuildTool (def via Traverse "def", cursor cell, `GetBuildingOrientation`) marks the spot and
+  asks the advisor for the project `guide` around it; when projects.json changes and the guide project
+  contains that building near the spot, it is focused and a card offers STAMP / PLACE AS SHOWN / ANOTHER /
+  ASK / DISCARD (discard removes it from projects.json). Gives up after 4 minutes.
 - **Hand-drawn marks** (`Sketch.cs`, `MarkRenderer.Stroke`, `PlanMarks.DrawSketch`): advisor marks only
   (player marks stay geometric). Point/outline = pen circle with overshoot, area = sketched box over a
   wash, path/arrow = bowed pen line + two-stroke head, line = highlighter. LineRenderer with
