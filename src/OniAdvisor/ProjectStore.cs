@@ -31,6 +31,7 @@ namespace OniAdvisor
         sealed class Item
         {
             public string Type, Prefab, Rotation, Note;
+            public List<string> Materials;      // element ids per ingredient, optional ("material" or "materials")
             public int X, Y;
             public List<(int x, int y)> Path = new List<(int, int)>();
             // computed
@@ -63,11 +64,14 @@ namespace OniAdvisor
             ["liquidpipe"] = ObjectLayer.LiquidConduit,
             ["wire"] = ObjectLayer.Wire,
             ["automation"] = ObjectLayer.LogicWire,
+            ["heavywire"] = ObjectLayer.Wire,
+            ["conveyor"] = ObjectLayer.SolidConduit,
         };
 
         static readonly Dictionary<string, string> ConduitPrefabs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["gaspipe"] = "GasConduit", ["liquidpipe"] = "LiquidConduit", ["wire"] = "Wire", ["automation"] = "LogicWire",
+            ["heavywire"] = "HighWattageWire", ["conveyor"] = "SolidConduit",
         };
 
         // ------------------------------------------------------------------ loading
@@ -116,6 +120,8 @@ namespace OniAdvisor
                         X = (int?)it["x"] ?? 0,
                         Y = (int?)it["y"] ?? 0,
                     };
+                    if (it["materials"] is JArray mats) item.Materials = mats.Select(m => (string)m).ToList();
+                    else if (it["material"] != null) item.Materials = new List<string> { (string)it["material"] };
                     if (it["path"] is JArray path)
                     {
                         var pts = path.Select(pt => ((int)pt[0], (int)pt[1])).ToList();
@@ -208,12 +214,11 @@ namespace OniAdvisor
                 }
                 else
                 {
-                    string reason = null;
-                    bool ok;
-                    try { ok = def.IsValidPlaceLocation((GameObject)null, cell, orient, false, out reason); }
-                    catch { ok = true; reason = "placement not checked"; }
-                    it.Status = ok ? "ready" : "blocked";
-                    it.Reason = ok ? null : STRINGS.UI.StripLinkFormatting(reason ?? "invalid location");
+                    var checks = BuildPlacer.Check(new BuildPlacer.Piece { Def = def, Cell = cell, Orientation = orient });
+                    var bad = checks.FirstOrDefault(c => c.Fit == BuildPlacer.Fit.Blocked);
+                    if (bad != null) { it.Status = "blocked"; it.Reason = bad.Reason; }
+                    else if (checks.Any(c => c.Fit == BuildPlacer.Fit.Dig)) { it.Status = "ready"; it.Reason = "needs digging first (placing it orders the digging)"; }
+                    else it.Status = "ready";
                 }
                 AddMaterials(p, def, 1);
                 return;
@@ -236,7 +241,7 @@ namespace OniAdvisor
                 else it.Built++;
             }
             it.Status = it.Built == it.Total ? "built" : missing == 0 ? "ordered" : it.Built + it.Ordered > 0 ? "partial" : "ready";
-            var cdef = Assets.GetBuildingDef(ConduitPrefabs[it.Type]);
+            var cdef = ConduitDef(it);
             if (cdef != null) AddMaterials(p, cdef, missing);
         }
 
@@ -307,6 +312,17 @@ namespace OniAdvisor
             forcedId = string.IsNullOrEmpty(projectId) ? null : projectId;
             lastDrawKey = "";
             Refresh();
+        }
+
+        /// <summary>Shows just this project's ghost (and turns the project overlay on).</summary>
+        public static string Focus(string id)
+        {
+            int i = projects.FindIndex(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) return "No such project";
+            focus = i;
+            if (!Overlays.ShowProjects) Overlays.ShowProjectsNow();
+            lastDrawKey = "";
+            return "Showing " + projects[i].Name;
         }
 
         public static string CycleFocus()
@@ -388,34 +404,55 @@ namespace OniAdvisor
             }
         }
 
-        // ------------------------------------------------------------------ placement (delegation, optional)
+        // ------------------------------------------------------------------ placement
+
+        static BuildingDef ConduitDef(Item it) =>
+            Assets.GetBuildingDef(!string.IsNullOrEmpty(it.Prefab) ? it.Prefab : ConduitPrefabs.TryGetValue(it.Type, out var id) ? id : "");
+
+        /// <summary>A project's items as pieces to check or place (unknown prefabs left out).</summary>
+        public static List<BuildPlacer.Piece> Pieces(string id, out string name)
+        {
+            var p = Find(id);
+            name = p?.Name;
+            var pieces = new List<BuildPlacer.Piece>();
+            if (p == null) return pieces;
+            int n = 0;
+            foreach (var it in p.Items)
+            {
+                n++;
+                if (it.Type == "building")
+                {
+                    var def = string.IsNullOrEmpty(it.Prefab) ? null : Assets.GetBuildingDef(it.Prefab);
+                    if (def == null) continue;
+                    pieces.Add(new BuildPlacer.Piece { Def = def, Cell = Grid.XYToCell(it.X, it.Y), Orientation = ParseOrientation(it.Rotation), Materials = it.Materials, Label = $"{p.Id}.{n}" });
+                }
+                else if (ConduitLayers.ContainsKey(it.Type))
+                {
+                    var def = ConduitDef(it);
+                    if (def == null || it.Path.Count == 0) continue;
+                    pieces.Add(new BuildPlacer.Piece { Def = def, Path = it.Path.Select(c => Grid.XYToCell(c.x, c.y)).ToList(), Materials = it.Materials, Label = $"{p.Id}.{n} {it.Type}" });
+                }
+            }
+            return pieces;
+        }
+
+        static Project Find(string id) => projects.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>The projects, for the advisor panel: id, name, progress line.</summary>
+        public static List<(string id, string name, string progress)> List() => projects.Select(p => (p.Id, p.Name, Progress(p))).ToList();
 
         /// <summary>
-        /// Places build orders for every "ready" building of a project, exactly as the build tool would
-        /// (default materials, normal cost). Pipes and wires are left for the player, since their
-        /// connections depend on how they are dragged. Returns a human-readable summary.
+        /// Places build orders for a whole project where it was planned: buildings, pipes, wires, rails and
+        /// automation (with their connections), dig orders for what is in the way; the rest waits until it fits.
+        /// Used by the advisor's placeProject command and the panel's PLACE button. Returns a summary.
         /// </summary>
         public static string PlaceProject(string id, int priority)
         {
-            var p = projects.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
-            if (p == null) return "no such project: " + id;
-            int placed = 0, skipped = 0;
-            var notes = new List<string>();
-            foreach (var it in p.Items)
-            {
-                if (it.Type != "building") { if (it.Status != "built") notes.Add($"{it.Type} left for manual placement"); continue; }
-                if (it.Status != "ready") { skipped++; continue; }
-                var def = Assets.GetBuildingDef(it.Prefab);
-                int cell = Grid.XYToCell(it.X, it.Y);
-                var pos = Grid.CellToPosCBC(cell, def.SceneLayer);
-                var go = def.TryPlace(null, pos, ParseOrientation(it.Rotation), def.DefaultElements(), 0);
-                if (go == null) { skipped++; continue; }
-                var pr = go.GetComponent<Prioritizable>();
-                if (pr != null) pr.SetMasterPriority(new PrioritySetting(PriorityScreen.PriorityClass.basic, Mathf.Clamp(priority, 1, 9)));
-                placed++;
-            }
+            var pieces = Pieces(id, out var name);
+            if (name == null) return "no such project: " + id;
+            var result = BuildPlacer.Place(pieces, priority);
             lastDrawKey = "";
-            return $"{p.Name}: placed {placed} building order(s), skipped {skipped}" + (notes.Count > 0 ? "; " + string.Join("; ", notes.Distinct()) : "");
+            return $"{name}: {result}";
         }
 
         public static void Clear()

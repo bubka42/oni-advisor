@@ -78,6 +78,17 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   effort, proactivity, plan review interval, speech on/off, voice speed, auto-start (companion reloads on a
   `settings` request; model/effort changes restart the claude process, resuming the conversation).
   Delegated commands in "ask" mode get an APPROVE / DECLINE card at the top of the game screen (`Approvals`).
+- **Blueprints** (`BuildPlacer.cs`, `StampTool.cs`, `ProjectStore.Pieces/PlaceProject`, PLAN tab):
+  projects are blueprints. `BuildPlacer.Check` = per-cell fit (ok / dig / already there / blocked with the
+  game's `IsValidPlaceLocation` reason). `BuildPlacer.Place`: tiles first, then buildings, then runs;
+  buildings via `def.TryPlace` with the most plentiful suitable material (or the plan's), runs cell by cell
+  with `KAnimGraphTileVisualizer.UpdateConnections` (existing pipes/wires on the path are joined),
+  `DigTool.PlaceDig` for solid tiles, and a waiting list retried every second (30 min) for pieces that
+  need digging or a floor first. Run types: gaspipe, liquidpipe, wire, heavywire, automation, conveyor
+  (+ `prefab` override, `material(s)`). Stamp tool: InterfaceTool registered next to the plan tool;
+  project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
+  lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
+  Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
 - **Hand-drawn marks** (`Sketch.cs`, `MarkRenderer.Stroke`, `PlanMarks.DrawSketch`): advisor marks only
   (player marks stay geometric). Point/outline = pen circle with overshoot, area = sketched box over a
   wash, path/arrow = bowed pen line + two-stroke head, line = highlighter. LineRenderer with
@@ -188,7 +199,7 @@ the mod. See `docs/HANDOFF.md`.
 ## Known gaps / ideas not done yet
 
 - Printing Pod pick by command (needs the selection screen's internals) — not implemented.
-- Project placement places buildings only; pipes and wires stay manual (their connections depend on
+- (Superseded by Blueprints above: placement now covers pipes, wires, rails and digging.) Project placement placed buildings only; pipes and wires stayed manual (their connections depend on
   the drag path). Intentional for now.
 - No in-game chat panel: chat lives in the companion window (always on top). An in-game panel would
   need careful keyboard-focus handling; revisit after testing.

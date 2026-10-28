@@ -212,7 +212,7 @@ namespace OniAdvisor
         }
     }
 
-    /// <summary>Registers the planning tool with the game's tool list.</summary>
+    /// <summary>Registers the planning tool and the blueprint stamp tool with the game's tool list.</summary>
     [HarmonyPatch(typeof(PlayerController), "OnPrefabInit")]
     internal static class PlayerController_OnPrefabInit_Patch
     {
@@ -224,7 +224,11 @@ namespace OniAdvisor
                 go.transform.SetParent(__instance.transform, false);
                 go.AddComponent<PlanTool>();
                 go.SetActive(true);
-                var tools = new List<InterfaceTool>(__instance.tools) { PlanTool.Instance ?? go.GetComponent<PlanTool>() };
+                var stampGo = new GameObject("OniAdvisorStampTool");
+                stampGo.transform.SetParent(__instance.transform, false);
+                stampGo.AddComponent<StampTool>();
+                stampGo.SetActive(true);
+                var tools = new List<InterfaceTool>(__instance.tools) { PlanTool.Instance ?? go.GetComponent<PlanTool>(), StampTool.Instance ?? stampGo.GetComponent<StampTool>() };
                 __instance.tools = tools.ToArray();
             }
             catch (Exception e) { Log.Warn("could not register planning tool (fallback input will be used): " + e.Message); }

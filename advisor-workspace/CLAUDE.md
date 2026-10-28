@@ -212,12 +212,24 @@ Projects — write `live/projects/projects.json` (whole file; keep existing proj
 ```
 Item types: `building` (game prefab ID, e.g. GasPump, GasFilter, HydrogenGenerator, Electrolyzer,
 LiquidPump, LiquidVent, GasVent, WaterPurifier, AirFilter, Refrigerator, FarmStation, MessTable,
-FlushToilet, WashSink, Bed, Door, Ladder, Tile), `gaspipe`, `liquidpipe`, `wire`, `automation`.
+FlushToilet, WashSink, Bed, Door, Ladder, Tile), and runs: `gaspipe`, `liquidpipe`, `wire`,
+`heavywire`, `automation`, `conveyor`. A run may name its own prefab for a variant
+(`{"type": "gaspipe", "prefab": "InsulatedGasConduit", "path": ...}`), and any item may pick its material
+(`"material": "Copper"`, or `"materials": [...]` per ingredient); otherwise the colony's most plentiful
+suitable material is used.
 The building's (x, y) is its origin cell as the game uses it: bottom row, horizontally centred (for an
 even width, the cell just left of centre), so a 4-wide generator at x=60 spans x=59..62. After writing, check
 `projects-status.json` — fix anything `blocked` (it gives the game's own reason) before presenting it.
-The player places blueprints by hand by default; only offer `placeProject` if they ask or the
-`projects` delegation is on.
+"needs digging first" is fine: placing the project orders the digging, and the building follows.
+
+A project is a **blueprint**, Factorio style. In the advisor panel's PLAN tab the player can SHOW it,
+STAMP it (carry it on the cursor and place copies anywhere, each tile tinted by whether it fits) or
+PLACE AS PLANNED. Placing puts down everything at once: build orders for buildings and for every run
+(pipes, wires, rails, automation, with their connections, joined to existing runs they end on), dig
+orders for solid tiles in the way, floors before what stands on them; anything that can't go in yet
+waits and is placed when its way clears. So design whole, self-contained layouts (a complete SPOM, a
+farm room with its pipes and power) and mention they can be stamped. The player places blueprints by
+hand by default; only use `placeProject` yourself if they ask or the `projects` delegation is on.
 
 ## Delegated commands
 

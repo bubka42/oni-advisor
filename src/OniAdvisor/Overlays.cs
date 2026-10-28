@@ -36,6 +36,9 @@ namespace OniAdvisor
 
         public static void Tick(float now) { if (applyAt >= 0f && now >= applyAt) Apply(); }
 
+        /// <summary>Turns projects on, keeping marks as they were (SHOW in the advisor panel).</summary>
+        public static void ShowProjectsNow() { mode = mode == 1 ? 2 : mode == 0 ? 3 : mode; Apply(); }
+
         public static void Reset() => mode = 0;
     }
 }

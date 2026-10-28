@@ -27,6 +27,8 @@ namespace OniAdvisor
 
         static RectTransform panel, chatPage, briefPage, planPage, chatList, briefList, planList, streamRow, threadBar;
         static TextMeshProUGUI streamText, threadTitle, planText;
+        static RectTransform projectsBox;
+        static string projectsKey;
         static readonly Dictionary<Page, TextMeshProUGUI> tabLabels = new Dictionary<Page, TextMeshProUGUI>();
         static TMP_InputField input;
         static ScrollRect chatScroll;
@@ -318,8 +320,40 @@ namespace OniAdvisor
 
         // ------------------------------------------------------------------ plan
 
+        /// <summary>
+        /// The advisor's projects above the plan, each with SHOW (its ghost on the map), STAMP (carry it on the
+        /// cursor and place copies anywhere) and PLACE (build orders exactly where it was planned).
+        /// </summary>
+        static void PollProjects()
+        {
+            if (projectsBox == null) return;
+            var list = ProjectStore.List();
+            string key = string.Join("|", list.Select(p => p.id + p.progress)) + BuildPlacer.WaitingCount;
+            if (key == projectsKey) return;
+            projectsKey = key;
+            for (int i = projectsBox.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(projectsBox.GetChild(i).gameObject);
+            if (list.Count == 0) return;
+            Text(projectsBox, "<b>PROJECTS</b>" + (BuildPlacer.WaitingCount > 0 ? $"  <size=12><color=#D2D4EB>{BuildPlacer.WaitingCount} piece(s) waiting to be placed</color></size>" : ""), 14, OniStyle.HeaderLight);
+            foreach (var (id, name, progress) in list)
+            {
+                var row = OniStyle.Rect("project-" + id, projectsBox);
+                OniStyle.Fill(row, OniStyle.Row, false);
+                var rv = row.gameObject.AddComponent<VerticalLayoutGroup>();
+                rv.padding = new RectOffset(8, 8, 5, 6); rv.spacing = 3; rv.childControlHeight = true; rv.childControlWidth = true; rv.childForceExpandHeight = false;
+                Text(row, $"<b>{Escape(name)}</b>  <size=12><color=#D2D4EB>{Escape(progress)}</color></size>", 14, OniStyle.Text);
+                var buttons = OniStyle.Rect("buttons", row);
+                var bh = buttons.gameObject.AddComponent<HorizontalLayoutGroup>();
+                bh.spacing = 6; bh.childControlWidth = true; bh.childControlHeight = true; bh.childForceExpandWidth = false;
+                string pid = id;
+                SmallButton(buttons, "SHOW", () => AdvisorHud.Show(ProjectStore.Focus(pid), 3f), 64);
+                SmallButton(buttons, "STAMP", () => { if (StampTool.Begin(pid)) Close(); }, 70);
+                SmallButton(buttons, "PLACE AS PLANNED", () => AdvisorHud.Show(ProjectStore.PlaceProject(pid, 5), 6f), 150);
+            }
+        }
+
         static void PollPlan()
         {
+            PollProjects();
             var t = File.Exists(PlanFile) ? File.GetLastWriteTimeUtc(PlanFile) : System.DateTime.MinValue;
             if (t == planTime && planText != null && planText.text.Length > 0) return;
             planTime = t;
@@ -415,6 +449,9 @@ namespace OniAdvisor
 
             // Plan: the document, and buttons.
             planList = ScrollList(planPage, new Vector2(10, 48), new Vector2(-10, -8), out _);
+            projectsBox = OniStyle.Rect("projects", planList);
+            var pjv = projectsBox.gameObject.AddComponent<VerticalLayoutGroup>();
+            pjv.padding = new RectOffset(6, 6, 6, 2); pjv.spacing = 4; pjv.childControlHeight = true; pjv.childControlWidth = true; pjv.childForceExpandHeight = false;
             var pr = OniStyle.Rect("plan-text", planList);
             var pv = pr.gameObject.AddComponent<VerticalLayoutGroup>();
             pv.padding = new RectOffset(10, 10, 8, 10); pv.childControlHeight = true; pv.childControlWidth = true; pv.childForceExpandHeight = false;
