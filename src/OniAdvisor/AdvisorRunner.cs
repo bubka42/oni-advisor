@@ -70,6 +70,7 @@ namespace OniAdvisor
             Guard("advisor panel", () => AdvisorPanel.Tick(now));
             Guard("tip bulb", () => TipBulb.Tick(now));
             Guard("live queries", () => LiveQueries.Tick(now));
+            Guard("network spike", () => NetSpike.Frame(now, Time.unscaledDeltaTime));
 
             if (now >= nextMemorySave)
             {
