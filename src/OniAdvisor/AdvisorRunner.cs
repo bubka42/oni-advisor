@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -70,6 +70,7 @@ namespace OniAdvisor
             Guard("advisor panel", () => AdvisorPanel.Tick(now));
             Guard("tip bulb", () => TipBulb.Tick(now));
             Guard("live queries", () => LiveQueries.Tick(now));
+            Guard("thinking view", () => ThinkingView.Tick(now));
             Guard("network spike", () => NetSpike.Frame(now, Time.unscaledDeltaTime));
 
             if (now >= nextMemorySave)

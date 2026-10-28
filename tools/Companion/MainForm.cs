@@ -22,6 +22,7 @@ public sealed class MainForm : Form
     readonly AdvisorSession advisor;
     readonly GameWatch watch;
     readonly ChatLog chat;
+    readonly ThinkingShow show;
     readonly ConversationLog convo;
 
     readonly RichTextBox log = new() { ReadOnly = true, Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(24, 26, 30), ForeColor = Color.Gainsboro, Font = new Font("Segoe UI", 10f) };
@@ -47,6 +48,7 @@ public sealed class MainForm : Form
         advisor = new AdvisorSession(settings, advisorDir, dotnetDir);
         watch = new GameWatch(liveDir);
         chat = new ChatLog(liveDir);
+        show = new ThinkingShow(liveDir);
         HookAdvisorEvents();
         convo = new ConversationLog(liveDir);
 
@@ -504,7 +506,8 @@ public sealed class MainForm : Form
             BeginInvoke(() => { status.Text = a + "…"; Append("", "· " + a, Color.DimGray); });
             WriteStatus("thinking", a + "…");
         };
-        advisor.Thought += t => { chat.AddInTurn("thought", t, ReadCycle()); BeginInvoke(() => Append("", t, Color.Gray)); };
+        advisor.Thought += t => { chat.AddInTurn("thought", t, ReadCycle()); show.Thought(t); BeginInvoke(() => Append("", t, Color.Gray)); };
+        advisor.ToolUse += (tool, input, description) => show.Tool(tool, input, description);
     }
 
     /// <summary>Every question, request and game update goes to the one advisor conversation, one turn at a time.</summary>
@@ -557,10 +560,12 @@ public sealed class MainForm : Form
 
         cts ??= new CancellationTokenSource();
         string prompt = BuildPrompt(trigger, text, req, view, facts, thread);
+        if (!unasked && settings.ShowThinking != "off") show.Begin(); // the player is waiting: let them watch it look
         chat.CurrentThread = thread;
         var reply = await advisor.AskAsync(prompt, cts.Token, shot != null && File.Exists(shot) ? shot : null);
         if (reply.Ok && File.Exists(draftFile) && File.GetLastWriteTimeUtc(draftFile) > draftBefore)
             await VerifyBriefing(draftFile, briefingFile, cycle);
+        show.End();
         if (trigger == "autosave") autosavePending = false;
         if (trigger == "review") lastReviewUtc = DateTime.UtcNow;
         currentActivity = "";

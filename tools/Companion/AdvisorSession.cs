@@ -28,6 +28,8 @@ public sealed class AdvisorSession : IDisposable
     public event Action<string>? TextChanged;
     /// <summary>The advisor started using a tool: a short human description ("checking pipes near the generator").</summary>
     public event Action<string>? Activity;
+    /// <summary>A tool call with its raw input and its description (for the thinking show).</summary>
+    public event Action<string, JsonNode?, string>? ToolUse;
     /// <summary>Text written before a tool call ("Let me check the pipes.") - shown as a thought, not the answer.</summary>
     public event Action<string>? Thought;
 
@@ -126,7 +128,10 @@ public sealed class AdvisorSession : IDisposable
                     case "assistant":
                         foreach (var c in j["message"]?["content"]?.AsArray() ?? new JsonArray())
                             if ((string?)c?["type"] == "tool_use")
+                            {
                                 Activity?.Invoke(Describe((string?)c?["name"] ?? "", c?["input"]));
+                                ToolUse?.Invoke((string?)c?["name"] ?? "", c?["input"], Describe((string?)c?["name"] ?? "", c?["input"]));
+                            }
                         break;
                     case "result":
                         if (++results != sent) break; // a late result from a turn that was given up on

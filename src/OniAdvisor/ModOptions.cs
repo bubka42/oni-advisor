@@ -98,7 +98,7 @@ namespace OniAdvisor
 
             var box = OniStyle.Rect("box", shade);
             box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(1120, 790);
+            box.sizeDelta = new Vector2(1120, 830);
             OniStyle.Fill(box, OniStyle.Panel, true);
 
             var header = OniStyle.Rect("header", box);
@@ -184,6 +184,7 @@ namespace OniAdvisor
             new Choice("AutoStart", "Start with the game", (true, "On"), (false, "Off (start it by hand)")),
             new Choice("MarkStyle", "Advisor's marks", ("sketch", "Hand-drawn"), ("clean", "Clean shapes")),
             new Choice("Spotlight", "Briefing spotlight", (true, "On (grey out the rest)"), (false, "Off")),
+            new Choice("ShowThinking", "Advisor's thinking", ("captions", "Captions while you wait"), ("camera", "Captions + camera follows"), ("off", "Off")),
         };
 
         static void ChoiceRow(Transform parent, Choice c)

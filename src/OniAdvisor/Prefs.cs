@@ -37,5 +37,8 @@ namespace OniAdvisor
 
         /// <summary>Briefing steps grey out everything but the area they are about.</summary>
         public static bool Spotlight => (bool?)Json["Spotlight"] ?? true;
+
+        /// <summary>Showing where the advisor looks while the player waits: off, captions, or camera (captions + camera).</summary>
+        public static string ShowThinking => (string)Json["ShowThinking"] ?? "captions";
     }
 }

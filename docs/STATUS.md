@@ -89,6 +89,11 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Thinking show** (`ThinkingShow.cs` in the companion, `ThinkingView.cs` in the mod; option `ShowThinking` =
+  captions | camera | off): during turns the player started, every MapQuery with coordinates becomes a
+  `live/think.json` look event (area, overlay from the query layer, the advisor's preceding sentence or the
+  activity description). The mod circles the area, shows the caption above the badge and, with "camera",
+  moves the camera and overlay there; restores both when the turn ends unless the player moved the camera.
 - **Guided planning** (`GuidedPlan.cs`, companion trigger `guide`): Ctrl+Shift+G while holding a building in
   the game's BuildTool (def via Traverse "def", cursor cell, `GetBuildingOrientation`) marks the spot and
   asks the advisor for the project `guide` around it; when projects.json changes and the guide project

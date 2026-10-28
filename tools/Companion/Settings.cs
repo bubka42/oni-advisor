@@ -32,6 +32,7 @@ public sealed class Settings
     public bool AutoStart { get; set; } = true;       // the mod starts this app in the background with the game
     public string MarkStyle { get; set; } = "sketch"; // the advisor's marks: sketch (hand-drawn) | clean (read by the mod)
     public bool Spotlight { get; set; } = true;       // briefing steps grey out everything but their area (read by the mod)
+    public string ShowThinking { get; set; } = "captions"; // off | captions | camera: show where the advisor is looking while the player waits
     public string? CustomPromptSent { get; set; }     // the custom instructions (custom-prompt.md) the current conversation has seen
     public int TimeoutSeconds { get; set; } = 300;
 
