@@ -46,9 +46,22 @@ namespace OniAdvisor
             captionText.text = fullText;
             captionText.maxVisibleCharacters = 0;
             shownAt = Time.unscaledTime;
+            frozenAt = -1;
             caption.gameObject.SetActive(!string.IsNullOrEmpty(say));
             root.gameObject.SetActive(true);
         }
+
+        static int frozenAt = -1;
+
+        /// <summary>
+        /// How far the narration has got, in characters of the step's spoken text (the caption types at the voice's
+        /// pace): marks tied to a phrase are drawn when it is reached. Very large when there is no caption.
+        /// </summary>
+        public static int SpokenChars => caption == null || !caption.gameObject.activeSelf ? int.MaxValue
+            : frozenAt >= 0 ? frozenAt : (int)((Time.unscaledTime - shownAt) * CharsPerSecond);
+
+        /// <summary>The briefing is paused: the caption (and with it the marks) stops where it is.</summary>
+        public static void Freeze() { if (frozenAt < 0) frozenAt = SpokenChars; }
 
         public static void Hide()
         {
@@ -63,7 +76,7 @@ namespace OniAdvisor
         {
             if (root == null || !root.gameObject.activeSelf) return;
             group.alpha = Mathf.MoveTowards(group.alpha, fadeTarget, Time.unscaledDeltaTime * 3f);
-            captionText.maxVisibleCharacters = (int)((Time.unscaledTime - shownAt) * CharsPerSecond); // typing out (TMP stops at the end)
+            captionText.maxVisibleCharacters = SpokenChars; // typing out (TMP stops at the end)
             if (group.alpha > 0f) PlaceHole();
         }
 

@@ -20,6 +20,7 @@ namespace OniAdvisor
         public string Kind = "area";  // area | line | point | path | arrow | outline
         public int X0, Y0, X1, Y1;
         public string Label;
+        public string At;    // briefing marks: a phrase of the step's spoken text; the mark is drawn when the narration reaches it
         public string Note;  // advisor marks: what the chip shows when clicked (else the message that drew the marks)
         public string Color; // optional "#RRGGBB" for advisor marks
         public string Tone;  // problem | build | check | info (advisor marks)
@@ -44,6 +45,7 @@ namespace OniAdvisor
             Y1 = (int?)t["y1"] ?? (int?)t["y0"] ?? (int?)t["y"] ?? 0,
             Label = (string)t["label"],
             Note = (string)t["note"],
+            At = (string)t["at"],
             Color = (string)t["color"],
             Tone = ((string)t["tone"])?.ToLowerInvariant(),
             Arrow = (bool?)t["arrow"] ?? false,
@@ -243,6 +245,16 @@ namespace OniAdvisor
         }
 
         /// <summary>Draws marks in the advisor's style (cyan unless a mark has its own colour) onto a layer.</summary>
+        /// <summary>One mark in the advisor's style, sketched on now (briefings draw each as the narration reaches it).</summary>
+        public static void DrawAdvisorMark(MarkRenderer r, Mark m, int id)
+        {
+            if (m.Id == 0) m.Id = id;
+            m.By = "advisor";
+            r.BeginReveal();
+            var line = ParseColor(m.Color, ToneColor(m.Tone));
+            Draw(r, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
+        }
+
         public static void DrawAdvisorStyle(MarkRenderer r, IEnumerable<Mark> marks)
         {
             r.BeginReveal(); // sketched on, one mark after another

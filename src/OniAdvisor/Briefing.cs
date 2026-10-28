@@ -23,7 +23,7 @@ namespace OniAdvisor
     {
         sealed class Step
         {
-            public string Title, Say, Text, Zoom, Project;
+            public string Title, Say, Text, Zoom, Project, ProjectAt;
             public int[] Focus;
             public RectInt? Spotlight;     // the area to keep lit (from "spotlight", else the marks, else the focus)
             public bool NoSpotlight;       // "spotlight": false
@@ -94,6 +94,7 @@ namespace OniAdvisor
         public static void Tick(float now)
         {
             if (open) BriefingStage.Tick();
+            if (open && !paused) DrawDue();
             if (open && advanceAt >= 0f && now >= advanceAt)
             {
                 advanceAt = -1f;
@@ -114,6 +115,7 @@ namespace OniAdvisor
                     Text = (string)s["text"],
                     Zoom = ((string)s["zoom"] ?? "base").ToLowerInvariant(),
                     Project = (string)s["project"],
+                    ProjectAt = (string)s["projectAt"],
                 };
                 if (s["focus"] is JArray f && f.Count >= 2) step.Focus = new[] { (int)f[0], (int)f[1] };
                 if (s["spotlight"] is JArray sp && sp.Count >= 4)
@@ -199,7 +201,7 @@ namespace OniAdvisor
         {
             if (!open) return;
             paused = !paused;
-            if (paused) { advanceAt = -1f; WritePlayback(-1); Rebuild(); } // -1 stops the voice
+            if (paused) { advanceAt = -1f; WritePlayback(-1); BriefingStage.Freeze(); Rebuild(); } // -1 stops the voice
             else { Rebuild(); PlayStep(); }
         }
 
@@ -222,9 +224,10 @@ namespace OniAdvisor
             var s = steps[current];
             stepLayer.Clear();
             stepLayer.Visible = true;
-            PlanMarks.DrawAdvisorStyle(stepLayer, s.Marks);
-            ProjectStore.ForceShow(s.Project);
             BriefingStage.Show(SpotlightArea(s), s.Title, s.Say);
+            ScheduleMarks(s);
+            ProjectStore.ForceShow(null);
+            DrawDue(); // whatever is due at the very start
             if (s.Focus != null)
             {
                 try
@@ -265,6 +268,57 @@ namespace OniAdvisor
                 return new RectInt(s.Focus[0] - r, s.Focus[1] - r, 2 * r + 1, 2 * r + 1);
             }
             return null;
+        }
+
+        // ------------------------------------------------------------------ marks in time with the narration
+
+        static readonly List<(int at, Mark mark, int id)> dueMarks = new List<(int, Mark, int)>();
+        static int projectDueAt = -1;
+        static string projectDue;
+
+        /// <summary>
+        /// When each of the step's marks (and its project's ghost) should appear, in characters of the spoken text:
+        /// at its "at" phrase if the advisor gave one, otherwise spread through the narration in the listed order,
+        /// the first shortly after the step starts. Without spoken text, everything appears at once.
+        /// </summary>
+        static void ScheduleMarks(Step s)
+        {
+            dueMarks.Clear();
+            string say = s.Say ?? "";
+            int n = s.Marks.Count, untimed = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var m = s.Marks[i];
+                int at = Find(say, m.At);
+                if (at < 0) at = say.Length == 0 ? 0 : (int)(say.Length * (0.08f + 0.8f * untimed++ / Mathf.Max(1, n)));
+                dueMarks.Add((at, m, i + 1));
+            }
+            dueMarks.Sort((a, b) => a.at.CompareTo(b.at));
+            projectDue = s.Project;
+            projectDueAt = string.IsNullOrEmpty(s.Project) ? -1 : Math.Max(0, Find(say, s.ProjectAt));
+        }
+
+        /// <summary>Where a phrase starts in the spoken text (case-insensitive), or -1.</summary>
+        static int Find(string say, string phrase) =>
+            string.IsNullOrEmpty(phrase) ? -1 : say.IndexOf(phrase, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Every frame while playing: draw what the narration has reached.</summary>
+        static void DrawDue()
+        {
+            if (dueMarks.Count == 0 && projectDueAt < 0) return;
+            int spoken = BriefingStage.SpokenChars;
+            while (dueMarks.Count > 0 && dueMarks[0].at <= spoken)
+            {
+                var (_, mark, id) = dueMarks[0];
+                dueMarks.RemoveAt(0);
+                try { PlanMarks.DrawAdvisorMark(stepLayer, mark, id); }
+                catch (Exception e) { Log.Warn("briefing mark: " + e.Message); }
+            }
+            if (projectDueAt >= 0 && projectDueAt <= spoken)
+            {
+                projectDueAt = -1;
+                ProjectStore.ForceShow(projectDue);
+            }
         }
 
         static void WritePlayback(int step)

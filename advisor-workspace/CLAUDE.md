@@ -429,9 +429,9 @@ step's marks and project, and reads each `say` aloud.
       "say": "Your electrolyzer makes more hydrogen than the generator burns, and the extra drifts up the ladder shafts.",
       "text": "Detail for the panel (not read aloud): numbers, coordinates, the reasoning.",
       "focus": [118, 200], "zoom": "near",
-      "marks": [ { "kind": "outline", "x0": 115, "y0": 191, "tone": "info", "label": "electrolyzer" },
-                 { "kind": "arrow", "x0": 116, "y0": 193, "x1": 119, "y1": 201, "tone": "problem", "label": "leak path" } ],
-      "project": "h2" } ] }
+      "marks": [ { "kind": "outline", "x0": 115, "y0": 191, "tone": "info", "label": "electrolyzer", "at": "electrolyzer" },
+                 { "kind": "arrow", "x0": 116, "y0": 193, "x1": 119, "y1": 201, "tone": "problem", "label": "leak path", "at": "drifts up" } ],
+      "project": "h2", "projectAt": "the generator" } ] }
 ```
 
 - **Length follows the situation, not a template.** A calm cycle: one or two steps. A normal cycle: a few.
@@ -448,7 +448,9 @@ step's marks and project, and reads each `say` aloud.
   `"spotlight": false` for an overview step. The step's `say` also appears as a large caption, with
   numbers highlighted, so put the key quantity in it ("makes 888 g/s of oxygen").
 - Your marks are drawn as quick hand-drawn sketches (circles around points and buildings, sketched
-  boxes, pen arrows) appearing one after another in the order you list them: list them in the order
-  you talk about them, and keep labels to a few words.
+  boxes, pen arrows) **at the moment the narration reaches them**: give each mark `"at"`, a short phrase
+  copied exactly from that step's `say` (the mark appears as the caption and voice get there), and the
+  step `"projectAt"` for the project's ghost. Marks without `"at"` are spread through the narration in the
+  order you list them, so list them in the order you talk about them. Keep labels to a few words.
 - After writing it, reply with one sentence on what it covers.
 - Update `../<colony>-plan.md` when goals or decisions change.

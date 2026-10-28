@@ -89,6 +89,10 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Marks in time with the narration** (`Briefing.ScheduleMarks/DrawDue`): each briefing mark is drawn when the
+  caption (which types at the voice's pace) reaches its `at` phrase in `say`, or spread through the narration
+  in listed order; the step's project ghost at `projectAt` (else at the start). Space freezes the caption
+  and the marks; continuing replays the step.
 - **Colonies** (`ColonyFiles.cs`, companion `CheckColony`): on load, the previous colony's advisor files move from
   live/ to advisor/colonies/<colony>/ and the loaded colony's come back; live/colony.json names the colony.
   The companion keeps a session per colony (`ColonySessions`), resumes it or starts fresh, and re-reads the
