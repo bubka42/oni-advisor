@@ -23,6 +23,10 @@ namespace OniAdvisor
         public static readonly Color ButtonText = Hex(0x3E, 0x43, 0x57);
         public static readonly Color Text = Color.white;
         public static readonly Color TextMuted = Hex(0xD2, 0xD4, 0xEB);
+        // Reading surfaces (chat rows, lists, chips): dark like the game's tutorial boxes, for white text to stand out.
+        public static readonly Color Ink = Hex(0x22, 0x25, 0x32, 0.97f);
+        public static readonly Color InkRow = Hex(0x2F, 0x33, 0x44);
+        public static readonly Color InkRowLight = Hex(0x3B, 0x40, 0x55);
 
         static TMP_FontAsset headerFont, bodyFont;
 

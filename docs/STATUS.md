@@ -95,6 +95,12 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   and the marks; continuing replays the step.
   Project ghosts build up piece by piece (`ProjectStore.ForceShow(id, count)`): one `projectAt` phrase per item,
   or spread from the first phrase to 90% of the narration.
+- **Pause resumes** where it stopped: Space freezes the caption; continuing restarts the voice at the start of
+  the sentence being read (`Briefing.Continue`, playback carries the remaining text) instead of the step.
+- **Readability**: advisor panel text x1.3 (panel 640 px wide), projects list 17-18 px (430 px), chips 18 px;
+  reading surfaces use the darker `OniStyle.Ink*` colours.
+- **Pitches**: a quest's `pitch` (briefing steps) plays in the briefing player via PITCH in the projects list
+  (`Briefing.PlayPitch`, id `pitch:ID`, ASK opens the quest's thread).
 - **Colonies** (`ColonyFiles.cs`, companion `CheckColony`): on load, the previous colony's advisor files move from
   live/ to advisor/colonies/<colony>/ and the loaded colony's come back; live/colony.json names the colony.
   The companion keeps a session per colony (`ColonySessions`), resumes it or starts fresh, and re-reads the

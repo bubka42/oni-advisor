@@ -33,18 +33,18 @@ namespace OniAdvisor
             var rt = OniStyle.Rect("chip", layer);
             rt.anchorMin = rt.anchorMax = Vector2.zero;
             rt.pivot = new Vector2(0.5f, 0f);
-            var bg = OniStyle.Fill(rt, new Color(OniStyle.PanelDark.r, OniStyle.PanelDark.g, OniStyle.PanelDark.b, 0.92f), onClick != null);
+            var bg = OniStyle.Fill(rt, OniStyle.Ink, onClick != null);
             var h = rt.gameObject.AddComponent<HorizontalLayoutGroup>();
-            h.padding = new RectOffset(0, 9, 3, 3); h.spacing = 7;
+            h.padding = new RectOffset(0, 11, 4, 4); h.spacing = 8;
             h.childControlWidth = h.childControlHeight = true; h.childForceExpandWidth = false; h.childAlignment = TextAnchor.MiddleLeft;
             var fit = rt.gameObject.AddComponent<ContentSizeFitter>();
             fit.horizontalFit = fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var edge = OniStyle.Rect("edge", rt);
-            var le = edge.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = 4; le.minHeight = 18;
+            var le = edge.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = 5; le.minHeight = 22;
             OniStyle.Fill(edge, new Color(color.r, color.g, color.b, 1f), false);
             var lt = OniStyle.Rect("text", rt);
-            var label = OniStyle.Label(lt, text.Replace("<", "‹"), 14, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            var label = OniStyle.Label(lt, text.Replace("<", "‹"), 18, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
             label.overflowMode = TextOverflowModes.Overflow;
             if (onClick != null)
             {

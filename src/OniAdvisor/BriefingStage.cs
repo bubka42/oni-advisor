@@ -63,6 +63,16 @@ namespace OniAdvisor
         /// <summary>The briefing is paused: the caption (and with it the marks) stops where it is.</summary>
         public static void Freeze() { if (frozenAt < 0) frozenAt = SpokenChars; }
 
+        /// <summary>Where the caption stopped when paused (or -1).</summary>
+        public static int FrozenAt => frozenAt;
+
+        /// <summary>The briefing continues: the caption types on from this character.</summary>
+        public static void Resume(int fromChar)
+        {
+            frozenAt = -1;
+            shownAt = Time.unscaledTime - fromChar / CharsPerSecond;
+        }
+
         public static void Hide()
         {
             if (root == null) return;

@@ -62,7 +62,7 @@ namespace OniAdvisor
         {
             for (int i = content.childCount - 1; i >= 0; i--) Object.Destroy(content.GetChild(i).gameObject);
             int ongoing = visible.Count(q => q.Status == "accepted"), proposed = visible.Count(q => q.Status == "proposed");
-            headerText.text = $"{(collapsed ? "+" : "-")}  PROJECTS  <size=12><color=#D2D4EB>{ongoing} ongoing · {proposed} proposed</color></size>";
+            headerText.text = $"{(collapsed ? "+" : "-")}  PROJECTS  <size=14><color=#D2D4EB>{ongoing} ongoing · {proposed} proposed</color></size>";
             content.parent.gameObject.SetActive(!collapsed); // the scroll view
             if (collapsed) return;
 
@@ -72,7 +72,7 @@ namespace OniAdvisor
                 if (list.Count == 0) continue;
                 bool open = openSections.Contains(status);
                 string s = status;
-                Clickable(content, $"{(open ? "-" : "+")}  {title} ({list.Count})", 14, true, OniStyle.HeaderLight, () => { if (!openSections.Remove(s)) openSections.Add(s); Dirty(); });
+                Clickable(content, $"{(open ? "-" : "+")}  {title} ({list.Count})", 17, true, OniStyle.HeaderLight, () => { if (!openSections.Remove(s)) openSections.Add(s); Dirty(); });
                 if (!open) continue;
                 foreach (var q in list) QuestBlock(q);
             }
@@ -81,7 +81,7 @@ namespace OniAdvisor
         static void QuestBlock(QuestStore.Quest q)
         {
             var block = OniStyle.Rect("quest-" + q.Id, content);
-            OniStyle.Fill(block, OniStyle.Row, false);
+            OniStyle.Fill(block, OniStyle.InkRow, false);
             var v = block.gameObject.AddComponent<VerticalLayoutGroup>();
             v.padding = new RectOffset(8, 8, 5, 6); v.spacing = 3;
             v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false;
@@ -91,15 +91,16 @@ namespace OniAdvisor
             string kind = q.Kind == "colony" ? " · COLONY" : "";
             string progress = q.Milestones.Count > 0 ? $"  {q.DoneCount}/{q.Milestones.Count}" : "";
             string advice = !string.IsNullOrEmpty(q.Advice) ? "  <color=#FFD86B>•</color>" : "";
-            Clickable(block, $"{(open ? "-" : "+")} <b>{Esc(q.Title)}</b>{advice}  <size=11><color=#D2D4EB>{tag}{kind}{progress}</color></size>", 14, false, OniStyle.Text,
+            Clickable(block, $"{(open ? "-" : "+")} <b>{Esc(q.Title)}</b>{advice}  <size=14><color=#D2D4EB>{tag}{kind}{progress}</color></size>", 18, false, OniStyle.Text,
                 () => { if (!openQuests.Remove(q.Id)) openQuests.Add(q.Id); Dirty(); });
             if (!open) return;
 
-            if (!string.IsNullOrEmpty(q.Why)) Text(block, Esc(q.Why), 12, OniStyle.TextMuted);
-            if (!string.IsNullOrEmpty(q.Advice)) Text(block, "<color=#FFD86B>Advisor:</color> " + Esc(q.Advice), 12, OniStyle.Text);
+            if (!string.IsNullOrEmpty(q.Why)) Text(block, Esc(q.Why), 16, OniStyle.TextMuted);
+            if (!string.IsNullOrEmpty(q.Advice)) Text(block, "<color=#FFD86B>Advisor:</color> " + Esc(q.Advice), 16, OniStyle.Text);
             foreach (var m in q.Milestones) MilestoneRow(block, q, m);
 
             var buttons = Row(block);
+            if (q.Pitch != null) Small(buttons, "PITCH >", () => Briefing.PlayPitch(q.Id, q.Title, q.Pitch), 80); // the narrated pitch
             switch (q.Status)
             {
                 case "proposed":
@@ -124,7 +125,7 @@ namespace OniAdvisor
         {
             var row = Row(parent);
             var box = OniStyle.Rect("check", row);
-            var le = box.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = 18; le.preferredHeight = 18;
+            var le = box.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = 22; le.preferredHeight = 22;
             var img = OniStyle.Fill(box, m.Done ? OniStyle.Header : OniStyle.Button, true);
             var b = box.gameObject.AddComponent<Button>();
             b.targetGraphic = img;
@@ -133,12 +134,12 @@ namespace OniAdvisor
             {
                 var tick = OniStyle.Rect("tick", box);
                 OniStyle.Stretch(tick);
-                OniStyle.Label(tick, "X", 12, header: true, color: Color.white, align: TextAlignmentOptions.Center, wrap: false);
+                OniStyle.Label(tick, "X", 14, header: true, color: Color.white, align: TextAlignmentOptions.Center, wrap: false);
             }
             var tr = OniStyle.Rect("text", row);
             tr.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-            string hint = !m.Done && m.AdvisorThinksDone ? "  <size=11><color=#9FE08C>(looks done: tick it?)</color></size>" : "";
-            var t = OniStyle.Label(tr, (m.Done ? "<s>" + Esc(m.Text) + "</s>" : Esc(m.Text)) + hint, 13, color: m.Done ? OniStyle.TextMuted : OniStyle.Text);
+            string hint = !m.Done && m.AdvisorThinksDone ? "  <size=14><color=#9FE08C>(looks done: tick it?)</color></size>" : "";
+            var t = OniStyle.Label(tr, (m.Done ? "<s>" + Esc(m.Text) + "</s>" : Esc(m.Text)) + hint, 17, color: m.Done ? OniStyle.TextMuted : OniStyle.Text);
             t.richText = true;
             Small(row, "…", () => AdvisorPanel.OpenThread($"quest:{q.Id}:{m.Id}"), 26); // the milestone's own thread
         }
@@ -182,9 +183,9 @@ namespace OniAdvisor
         static void Small(RectTransform parent, string text, UnityEngine.Events.UnityAction onClick, float width)
         {
             var b = OniStyle.MakeButton(parent, text, onClick, width);
-            b.GetComponent<LayoutElement>().preferredHeight = 22;
+            b.GetComponent<LayoutElement>().preferredHeight = 26;
             var label = b.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null) label.fontSize = 11;
+            if (label != null) label.fontSize = 13;
         }
 
         static void Build()
@@ -194,7 +195,7 @@ namespace OniAdvisor
             root.anchorMin = root.anchorMax = new Vector2(0f, 0.5f);
             root.pivot = new Vector2(0f, 0.5f);
             root.anchoredPosition = new Vector2(8f, 40f);
-            root.sizeDelta = new Vector2(340f, 560f);
+            root.sizeDelta = new Vector2(430f, 600f);
             var v = root.gameObject.AddComponent<VerticalLayoutGroup>();
             v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false; v.childForceExpandWidth = true;
             v.childAlignment = TextAnchor.UpperLeft;
@@ -207,12 +208,12 @@ namespace OniAdvisor
             hb.onClick.AddListener(() => { collapsed = !collapsed; Dirty(); });
             var ht = OniStyle.Rect("text", header);
             OniStyle.Stretch(ht, 10, 0);
-            headerText = OniStyle.Label(ht, "PROJECTS", 16, header: true, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            headerText = OniStyle.Label(ht, "PROJECTS", 18, header: true, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
             headerText.richText = true;
 
             var view = OniStyle.Rect("view", root);
             var vle = view.gameObject.AddComponent<LayoutElement>(); vle.flexibleHeight = 1; vle.preferredHeight = 520;
-            OniStyle.Fill(view, OniStyle.PanelDark, true);
+            OniStyle.Fill(view, OniStyle.Ink, true);
             view.gameObject.AddComponent<RectMask2D>();
             content = OniStyle.Rect("content", view);
             content.anchorMin = new Vector2(0, 1); content.anchorMax = new Vector2(1, 1); content.pivot = new Vector2(0.5f, 1);

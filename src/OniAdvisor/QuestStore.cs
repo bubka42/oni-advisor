@@ -28,6 +28,7 @@ namespace OniAdvisor
         internal sealed class Quest
         {
             public string Id, Title, Kind, Horizon, Why, Project, Advice;
+            public JObject Pitch;   // a briefing ({"steps": [...]}) the briefing player narrates: the project's pitch
             public string Status;   // proposed | accepted | stalled | abandoned | declined | completed | scrapped
             public List<Milestone> Milestones = new List<Milestone>();
             public int DoneCount => Milestones.Count(m => m.Done);
@@ -64,7 +65,7 @@ namespace OniAdvisor
                         questsTime = t;
                         changed = true;
                         int after = quests.Count(q => q.Status == "proposed");
-                        if (after > before) AdvisorHud.Show($"The advisor proposes {after - before} new project(s): see PROJECTS on the left", 4f);
+                        if (after > before) AdvisorHud.Show($"The advisor proposes {after - before} new project(s): open one under PROJECTS on the left and press PITCH to hear it", 5f);
                     }
                 }
                 if (changed) { Apply(); Version++; }
@@ -89,6 +90,7 @@ namespace OniAdvisor
                     Project = (string)q["project"],
                     Advice = (string)q["advice"],
                     Status = ((string)q["status"] ?? "proposed").ToLowerInvariant(),
+                    Pitch = q["pitch"] is JObject po ? po : q["pitch"] is JArray pa ? new JObject { ["steps"] = pa } : null,
                 };
                 int m = 0;
                 foreach (var ms in q["milestones"] ?? new JArray())

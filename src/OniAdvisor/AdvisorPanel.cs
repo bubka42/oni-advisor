@@ -230,12 +230,12 @@ namespace OniAdvisor
             switch (who)
             {
                 case "you":
-                    OniStyle.Fill(row, OniStyle.PanelDark, false);
+                    OniStyle.Fill(row, OniStyle.InkRowLight, false);
                     v.padding = new RectOffset(40, 10, 5, 6);
                     Text(row, "<b>You</b>  " + Escape(text), 15, OniStyle.TextMuted);
                     break;
                 case "advisor":
-                    OniStyle.Fill(row, OniStyle.Row, false);
+                    OniStyle.Fill(row, OniStyle.InkRow, false);
                     v.padding = new RectOffset(10, 10, 6, 6);
                     Text(row, "<color=#F182B7><b>ADVISOR</b></color>\n" + Rich(text), 15, OniStyle.Text);
                     canThread = true;
@@ -244,14 +244,14 @@ namespace OniAdvisor
                 case "tip-urgent":
                 case "tip-later":
                     string lvl = who.Substring(4);
-                    OniStyle.Fill(row, lvl == "critical" ? new Color(0.62f, 0.27f, 0.3f) : lvl == "urgent" ? new Color(0.62f, 0.45f, 0.25f) : OniStyle.Row, false);
+                    OniStyle.Fill(row, lvl == "critical" ? new Color(0.45f, 0.17f, 0.19f) : lvl == "urgent" ? new Color(0.44f, 0.3f, 0.14f) : OniStyle.InkRow, false);
                     v.padding = new RectOffset(10, 10, 6, 6);
                     string tag = lvl == "critical" ? "<color=#FF8A80><b>CRITICAL</b></color>" : lvl == "urgent" ? "<color=#FFC069><b>CHECK SOON</b></color>" : "<color=#FFE680><b>TIP</b></color>";
                     Text(row, tag + "\n" + Rich(text), 15, OniStyle.Text);
                     canThread = true;
                     break;
                 case "briefing":
-                    OniStyle.Fill(row, OniStyle.RowActive, false);
+                    OniStyle.Fill(row, OniStyle.InkRowLight, false);
                     v.padding = new RectOffset(10, 10, 6, 6);
                     Text(row, "<color=#F182B7><b>BRIEFING</b></color>\n" + Rich(text), 15, OniStyle.Text);
                     canThread = true;
@@ -405,7 +405,7 @@ namespace OniAdvisor
             panel.anchorMin = panel.anchorMax = new Vector2(1f, 0.5f);
             panel.pivot = new Vector2(1f, 0.5f);
             panel.anchoredPosition = new Vector2(-16, 20);
-            panel.sizeDelta = new Vector2(540, 820);
+            panel.sizeDelta = new Vector2(640, 860); // wider for the larger text
             OniStyle.Fill(panel, OniStyle.Panel, true);
 
             // Header: title, tabs, close.
@@ -513,7 +513,7 @@ namespace OniAdvisor
             var view = OniStyle.Rect("view", parent);
             view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one;
             view.offsetMin = offsetMin; view.offsetMax = offsetMax;
-            OniStyle.Fill(view, OniStyle.PanelDark, true);
+            OniStyle.Fill(view, OniStyle.Ink, true);
             view.gameObject.AddComponent<RectMask2D>();
             var list = OniStyle.Rect("list", view);
             list.anchorMin = new Vector2(0, 1); list.anchorMax = new Vector2(1, 1); list.pivot = new Vector2(0.5f, 1);
@@ -539,10 +539,10 @@ namespace OniAdvisor
             area.gameObject.AddComponent<RectMask2D>();
             var placeholderRt = OniStyle.Rect("placeholder", area);
             OniStyle.Stretch(placeholderRt);
-            var placeholder = OniStyle.Label(placeholderRt, "Ask the advisor…  (Enter sends, Esc leaves the box)", 15, color: new Color(0.24f, 0.26f, 0.34f, 0.6f), align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            var placeholder = OniStyle.Label(placeholderRt, "Ask the advisor…  (Enter sends, Esc leaves the box)", 18, color: new Color(0.24f, 0.26f, 0.34f, 0.6f), align: TextAlignmentOptions.MidlineLeft, wrap: false);
             var textRt = OniStyle.Rect("text", area);
             OniStyle.Stretch(textRt);
-            var text = OniStyle.Label(textRt, "", 15, color: OniStyle.ButtonText, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            var text = OniStyle.Label(textRt, "", 18, color: OniStyle.ButtonText, align: TextAlignmentOptions.MidlineLeft, wrap: false);
             text.richText = false;
             var field = box.gameObject.AddComponent<TMP_InputField>();
             field.targetGraphic = bg;
@@ -550,7 +550,7 @@ namespace OniAdvisor
             field.textComponent = text;
             field.placeholder = placeholder;
             if (OniStyle.BodyFont != null) field.fontAsset = OniStyle.BodyFont;
-            field.pointSize = 15;
+            field.pointSize = 18;
             field.lineType = TMP_InputField.LineType.SingleLine;
             field.caretColor = OniStyle.ButtonText;
             field.customCaretColor = true;
@@ -558,10 +558,12 @@ namespace OniAdvisor
             return field;
         }
 
+        const float TextScale = 1.3f; // 15 px -> ~19-20 px: close to the advisor card's text, easy to read over the game
+
         static TextMeshProUGUI Text(RectTransform parent, string text, float size, Color color)
         {
             var rt = OniStyle.Rect("text", parent);
-            var t = OniStyle.Label(rt, text, size, color: color);
+            var t = OniStyle.Label(rt, text, Mathf.Round(size * TextScale), color: color);
             t.richText = true;
             return t;
         }

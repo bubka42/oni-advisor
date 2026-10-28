@@ -103,9 +103,10 @@ namespace OniAdvisor
             }
         }
 
-        static bool Load(string path)
+        static bool Load(string path) => Load(JObject.Parse(File.ReadAllText(path)), File.GetLastWriteTimeUtc(path).Ticks.ToString());
+
+        static bool Load(JObject root, string fallbackId)
         {
-            var root = JObject.Parse(File.ReadAllText(path));
             var newSteps = new List<Step>();
             foreach (var s in root["steps"] ?? new JArray())
             {
@@ -129,7 +130,7 @@ namespace OniAdvisor
             if (newSteps.Count == 0) return false;
             steps.Clear();
             steps.AddRange(newSteps);
-            id = (string)root["id"] ?? File.GetLastWriteTimeUtc(path).Ticks.ToString();
+            id = (string)root["id"] ?? fallbackId;
             title = (string)root["title"] ?? "Briefing";
             cycle = (int?)root["cycle"] ?? 0;
             return true;
@@ -148,6 +149,24 @@ namespace OniAdvisor
                 return;
             }
             Open();
+        }
+
+        /// <summary>
+        /// Plays a project's pitch (its "pitch" in quests.json: the same steps as a briefing) with the briefing
+        /// player: voice, caption, marks and the blueprint building up. ASK goes to the project's thread.
+        /// </summary>
+        public static void PlayPitch(string questId, string questTitle, JObject pitch)
+        {
+            try
+            {
+                if (open) Close();
+                var root = (JObject)pitch.DeepClone();
+                root["id"] = "pitch:" + questId;
+                root["title"] = (string)root["title"] ?? "Project: " + questTitle;
+                if (Load(root, "pitch:" + questId)) Open();
+                else AdvisorHud.Show("That project has no pitch yet", 3f);
+            }
+            catch (Exception e) { Log.Warn("pitch: " + e.Message); AdvisorHud.Show("Could not play that pitch", 3f); }
         }
 
         /// <summary>Replays a briefing from the archive (the advisor panel's BRIEFINGS tab).</summary>
@@ -204,7 +223,25 @@ namespace OniAdvisor
             if (!open) return;
             paused = !paused;
             if (paused) { advanceAt = -1f; WritePlayback(-1); BriefingStage.Freeze(); Rebuild(); } // -1 stops the voice
-            else { Rebuild(); PlayStep(); }
+            else Continue();
+        }
+
+        /// <summary>
+        /// Continuing after a pause: from the start of the sentence that was being read (so the voice doesn't
+        /// start mid-word), not from the top of the step. Marks already drawn stay; the rest keep their timing.
+        /// </summary>
+        static void Continue()
+        {
+            var s = steps[current];
+            string say = s.Say ?? "";
+            int at = Mathf.Clamp(BriefingStage.FrozenAt, 0, say.Length);
+            int start = 0;
+            for (int i = Math.Min(at, say.Length) - 1; i > 0; i--)
+                if ((say[i - 1] == '.' || say[i - 1] == '!' || say[i - 1] == '?') && say[i] == ' ') { start = i + 1; break; }
+            if (BriefingStage.FrozenAt < 0 || at >= say.Length) start = Math.Min(start, say.Length);
+            BriefingStage.Resume(start);
+            Rebuild();
+            WritePlayback(current, start < say.Length ? say.Substring(start) : "");
         }
 
         public static void Next() { if (open && current < steps.Count - 1) Go(current + 1); }
@@ -350,11 +387,11 @@ namespace OniAdvisor
             }
         }
 
-        static void WritePlayback(int step)
+        static void WritePlayback(int step, string sayFrom = null)
         {
             try
             {
-                var o = new JObject { ["id"] = id, ["step"] = step, ["say"] = step >= 0 && step < steps.Count ? steps[step].Say : null, ["utc"] = System.DateTime.UtcNow.ToString("o") };
+                var o = new JObject { ["id"] = id, ["step"] = step, ["say"] = sayFrom ?? (step >= 0 && step < steps.Count ? steps[step].Say : null), ["utc"] = System.DateTime.UtcNow.ToString("o") };
                 Paths.WriteAtomic(PlaybackFile, o.ToString(Formatting.None));
             }
             catch (Exception e) { Log.Warn("briefing playback write: " + e.Message); }
@@ -406,7 +443,7 @@ namespace OniAdvisor
             hlg.spacing = 8; hlg.childAlignment = TextAnchor.MiddleCenter; hlg.childForceExpandWidth = false; hlg.childControlWidth = true; hlg.childControlHeight = true;
             OniStyle.MakeButton(bar, "◀ BACK", () => Go(current - 1), 86);
             OniStyle.MakeButton(bar, "NEXT ▶", () => Go(current + 1), 86);
-            OniStyle.MakeButton(bar, "ASK", () => { var t = AdvisorPanel.ThreadForBriefing(id); Close(); if (t != null) AdvisorPanel.OpenThread(t); else AdvisorPanel.Open(); }, 70);
+            OniStyle.MakeButton(bar, "ASK", () => { var t = id != null && id.StartsWith("pitch:") ? "quest:" + id.Substring(6) : AdvisorPanel.ThreadForBriefing(id); Close(); if (t != null) AdvisorPanel.OpenThread(t); else AdvisorPanel.Open(); }, 70);
             OniStyle.MakeButton(bar, "ALL", () => { Close(); AdvisorPanel.Open(chat: false); }, 70);
             OniStyle.MakeButton(bar, "CLOSE", Close, 86);
             var ft = OniStyle.Rect("footer", panel);

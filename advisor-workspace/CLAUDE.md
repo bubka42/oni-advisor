@@ -190,6 +190,14 @@ a PROJECTS list on the left of the screen (ongoing, proposed, on hold, done). Wr
     "why": "The next Printing Pod pick is due; make room before you print.",
     "milestones": ["Six beds in barracks", "Food for six for five cycles", "Oxygen output covers six"] } ] }
 ```
+- **Every proposal comes with a pitch**: `"pitch": {"steps": [...]}`, the same steps as a briefing (`say`,
+  `text`, `focus`, `zoom`, `marks` with `at`, `project` with `projectAt`, `spotlight`), narrated by the
+  briefing player when the player presses PITCH. 3–5 steps: what the project is and the problem it solves
+  (with the numbers: runways, rates, how many cycles you gain); where it goes (focus, marks, the blueprint
+  building up as you describe it); what it takes (materials with amounts, research, dupe time, power); what
+  the colony gets and what to watch out for; and when to do it (now, or after which other project). Make it
+  persuasive but honest: if it can wait, say so. `why` is the written summary (two or three sentences).
+  Add a pitch to any proposal that lacks one. Check the facts in a pitch like a briefing's.
 - **The player decides; you never do.** Their choices are in `live/quests-state.json` (written by the game):
   accepted, declined, stalled (on hold), abandoned, completed, and which milestones they ticked. Never write
   that file and never mark a milestone done yourself; set `"looksDone": true` on a milestone you have
