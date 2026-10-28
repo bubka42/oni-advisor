@@ -46,6 +46,8 @@
   <!-- dotnet build -p:Deploy=true copies the mod into the game's Dev mods folder. -->
   <Target Name="DeployMod" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
     <Copy SourceFiles="$(TargetPath);mod.yaml;mod_info.yaml" DestinationFolder="$(ModDeployDir)" />
+    <!-- Where the mod finds the companion to start it in the background (CompanionLauncher). -->
+    <WriteLinesToFile File="$(ModDeployDir)\companion-path.txt" Lines="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\tools\Companion\bin\Release\net8.0-windows\OniAdvisorCompanion.exe'))" Overwrite="true" />
     <Message Importance="high" Text="Deployed OniAdvisor to $(ModDeployDir)" />
   </Target>
 

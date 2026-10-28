@@ -33,8 +33,9 @@ public sealed class MainForm : Form
     readonly CheckBox speakBox = new() { Text = "Speak", AutoSize = true };
     readonly Button micButton = new() { Text = "🎤 Hold", Width = 70 };
 
-    public MainForm(string advisorDir, string repoRoot, string dotnetDir)
+    public MainForm(string advisorDir, string repoRoot, string dotnetDir, bool background = false, int gamePid = 0)
     {
+        startHidden = background;
         this.advisorDir = advisorDir;
         this.repoRoot = repoRoot;
         this.dotnetDir = dotnetDir;
@@ -79,6 +80,8 @@ public sealed class MainForm : Form
         follow.Tick += (_, _) => FollowGame();
         follow.Start();
         timer.Start();
+        BuildTray();
+        if (gamePid > 0) QuitWithGame(gamePid);
 
         WriteStatus("idle", null);
         _ = Task.Run(advisor.WarmUp); // start the advisor now: start-up is the slow part
@@ -89,6 +92,69 @@ public sealed class MainForm : Form
             System("Claude Code was not found. Set \"ClaudePath\" in advisor/companion.json.");
     }
 
+    // ------------------------------------------------------------------ running in the background
+
+    bool startHidden;
+    NotifyIcon? tray;
+    bool applying; // setting controls from the settings file: their change handlers must not write it back
+
+    /// <summary>Started by the mod (--background): create the window (requests are marshalled through it) but don't show it.</summary>
+    protected override void SetVisibleCore(bool value)
+    {
+        if (startHidden)
+        {
+            startHidden = false;
+            if (!IsHandleCreated) CreateHandle();
+            value = false;
+        }
+        base.SetVisibleCore(value);
+    }
+
+    /// <summary>A tray icon is the only trace of the app while it runs in the background.</summary>
+    void BuildTray()
+    {
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Show / hide window", null, (_, _) => ToggleVisible());
+        menu.Items.Add("Quit the advisor", null, (_, _) => Close());
+        tray = new NotifyIcon
+        {
+            Icon = Icon ?? SystemIcons.Application,
+            Text = "ONI Advisor",
+            Visible = true,
+            ContextMenuStrip = menu,
+        };
+        tray.DoubleClick += (_, _) => ToggleVisible();
+    }
+
+    /// <summary>Started by the game: quit when it does.</summary>
+    void QuitWithGame(int pid)
+    {
+        Process game;
+        try { game = Process.GetProcessById(pid); }
+        catch { return; }
+        var t = new System.Windows.Forms.Timer { Interval = 3000 };
+        t.Tick += (_, _) => { try { if (!game.HasExited) return; } catch { } t.Stop(); Close(); };
+        t.Start();
+    }
+
+    /// <summary>The game's mod options changed companion.json: take the new values without a restart.</summary>
+    void ApplySettings()
+    {
+        string? model = settings.Model, effort = settings.Effort;
+        settings.Reload();
+        TopMost = settings.TopMost;
+        applying = true; speakBox.Checked = settings.Speak; applying = false;
+        if (!settings.Speak && !settings.SpeakBriefings) voice.StopSpeaking();
+        voice.SetSpeed(settings.TtsSpeed);
+        if (settings.TtsSpeaker is int id) voice.SetSpeaker(id);
+        if (model != settings.Model || effort != settings.Effort)
+        {
+            advisor.Restart();
+            System($"Advisor model: {settings.Model}, effort {settings.Effort} (the conversation continues).");
+        }
+        else System("Settings updated from the game.");
+    }
+
     // ------------------------------------------------------------------ UI
 
     void BuildUi()
@@ -97,7 +163,7 @@ public sealed class MainForm : Form
         topMostBox.Checked = settings.TopMost;
         topMostBox.CheckedChanged += (_, _) => { TopMost = settings.TopMost = topMostBox.Checked; settings.Save(); };
         speakBox.Checked = settings.Speak;
-        speakBox.CheckedChanged += (_, _) => { settings.Speak = settings.SpeakBriefings = speakBox.Checked; settings.Save(); if (!speakBox.Checked) voice.StopSpeaking(); };
+        speakBox.CheckedChanged += (_, _) => { if (applying) return; settings.Speak = settings.SpeakBriefings = speakBox.Checked; settings.Save(); if (!speakBox.Checked) voice.StopSpeaking(); };
         var settingsBtn = SmallButton("Settings", (_, _) => OpenSettings());
         var newBtn = SmallButton("New chat", (_, _) =>
         {
@@ -272,6 +338,7 @@ public sealed class MainForm : Form
             case "stop": cts?.Cancel(); cts = null; voice.StopSpeaking(); break;
             case "speak-toggle": ToggleVoice(); break;
             case "voice" when (int?)req["speaker"] is int id: ChooseVoice(id, (string?)req["name"]); break;
+            case "settings": ApplySettings(); break;
             default: System($"({trigger} from the game; auto-reply is off)"); break;
         }
     }
@@ -723,6 +790,7 @@ public sealed class MainForm : Form
     {
         requestWatcher?.Dispose();
         playbackWatcher?.Dispose();
+        if (tray != null) { tray.Visible = false; tray.Dispose(); }
         advisor.Dispose();
         voice.Dispose();
         speech.Dispose();

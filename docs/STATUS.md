@@ -71,6 +71,13 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   game's Mods screen opens a dialog with the 28 English v1.0 voices (ids 0-27, confirmed from the model's
   `id2speaker` metadata). A click writes `TtsSpeaker` into `companion.json` and sends a `voice` request; a
   running companion switches speaker without reloading the model and speaks a sample.
+- **Fully in the background**: the mod starts the companion at game start (`CompanionLauncher`: apphost exe,
+  `DOTNET_ROOT`, `CreateNoWindow`, `--background --game-pid`). Window hidden, tray icon (show/hide, quit),
+  quits when the game exits. **Tested outside the game**: starts with no window or console, starts claude,
+  exits (with its claude child) when the given pid ends. The Mods-screen OPTIONS dialog also holds model,
+  effort, proactivity, plan review interval, speech on/off, voice speed, auto-start (companion reloads on a
+  `settings` request; model/effort changes restart the claude process, resuming the conversation).
+  Delegated commands in "ask" mode get an APPROVE / DECLINE card at the top of the game screen (`Approvals`).
 - Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
   keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
   `(silent)` handling, Kokoro audio device.

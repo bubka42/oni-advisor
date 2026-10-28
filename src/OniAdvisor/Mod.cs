@@ -10,6 +10,7 @@ namespace OniAdvisor
         {
             base.OnLoad(harmony);
             ModOptions.Self = mod;
+            CompanionLauncher.EnsureRunning(path);
             Log.Info("loaded; output folder: " + Paths.LiveDir);
         }
     }

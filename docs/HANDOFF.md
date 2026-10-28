@@ -77,9 +77,11 @@ marks (planning) · M overlay cycle · N project focus.
   updates; `ClaudeRunner.FindClaude` searches all known places). It needed a one-time `/login`.
 - **Deploying the mod requires ONI to be closed** (DLL locked): `dotnet build src/OniAdvisor/OniAdvisor.csproj
   -c Release -p:Deploy=true`.
-- **Restarting the companion**: it may be hidden (no window title), so stop it by command line:
-  `Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | ? CommandLine -match 'OniAdvisorCompanion\.dll' | % { Stop-Process -Id $_.ProcessId }`.
-  Never stop all `dotnet` processes. Start: `tools/run-companion.cmd`. It has a single-instance mutex.
+- **Restarting the companion**: the mod normally starts it (hidden, tray icon) via the apphost exe, so it
+  runs as `OniAdvisorCompanion.exe`: `Stop-Process -Name OniAdvisorCompanion`. Older runs went through
+  dotnet.exe: stop only those whose command line matches `OniAdvisorCompanion\.dll`, never all `dotnet`
+  processes. Manual start: `tools/run-companion.cmd`. It has a single-instance mutex (a second
+  `--background` instance exits silently).
 - PowerShell patching with single-quoted here-strings breaks on code containing `' '` — use the Edit
   tool for such code.
 - The companion has a method named `System(...)`; inside `MainForm` use `global::System.…` for BCL types.

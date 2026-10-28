@@ -90,7 +90,7 @@ namespace OniAdvisor
                     cmd["summary"] = Describe(cmd);
                     Paths.WriteAtomic(Path.Combine(Dir("pending"), id + ".json"), cmd.ToString(Formatting.Indented));
                     Log.Info("command waiting for approval: " + cmd["summary"]);
-                    AdvisorHud.Show("Approve in the companion: " + cmd["summary"], 5f);
+                    AdvisorHud.Show("The advisor asks: " + cmd["summary"], 5f);
                     break;
                 default: Finish(id, cmd, "refused", $"delegation for '{category}' is off"); break;
             }

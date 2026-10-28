@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
@@ -93,6 +93,7 @@ namespace OniAdvisor
                 Guard("advisor status", AdvisorHud.PollStatus);
                 Guard("briefing poll", Briefing.Poll);
                 Guard("tips", TipBulb.Poll);
+                Guard("approvals", Approvals.Poll);
             }
 
             if (now >= nextRules)

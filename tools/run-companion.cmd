@@ -1,5 +1,6 @@
 @echo off
-rem Starts the ONI Advisor companion with the per-user .NET install (no PATH or DOTNET_ROOT needed).
-set "DOTNET=%USERPROFILE%\.dotnet\dotnet.exe"
-if not exist "%DOTNET%" set "DOTNET=dotnet"
-start "" "%DOTNET%" "%~dp0Companion\bin\Release\net8.0-windows\OniAdvisorCompanion.dll" %*
+rem Starts the ONI Advisor companion by hand, with its window shown (normally the mod starts it in the
+rem background when the game starts). The apphost exe has no console window; it finds the per-user .NET
+rem install through DOTNET_ROOT.
+set "DOTNET_ROOT=%USERPROFILE%\.dotnet"
+start "" "%~dp0Companion\bin\Release\net8.0-windows\OniAdvisorCompanion.exe" %*

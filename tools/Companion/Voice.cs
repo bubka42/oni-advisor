@@ -30,6 +30,11 @@ public sealed class Voice : IDisposable
         return true;
     }
 
+    public void SetSpeed(float speed)
+    {
+        if (kokoro != null) kokoro.Speed = speed;
+    }
+
     bool UseKokoro => kokoro != null && kokoro.Error == null;
 
     public void Speak(string text)

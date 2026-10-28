@@ -19,7 +19,7 @@ public sealed class KokoroVoice : IDisposable
 
     readonly string dir;
     int speaker;
-    readonly float speed;
+    float speed;
     OfflineTts? tts;
     WaveOutEvent? output;
     BufferedWaveProvider? buffer;
@@ -50,6 +50,7 @@ public sealed class KokoroVoice : IDisposable
 
     /// <summary>Switches voice without reloading the model (all voices share it); applies from the next sentence.</summary>
     public int Speaker { get => speaker; set => speaker = value; }
+    public float Speed { get => speed; set => speed = value <= 0 ? 1f : value; }
 
     /// <summary>Loads the model (a few seconds); called in the background at start-up.</summary>
     public bool Load()

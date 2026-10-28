@@ -224,7 +224,21 @@ public sealed class AdvisorSession : IDisposable
         }
         catch (TaskCanceledException) { Stop(); return new ClaudeRunner.Reply(false, "", null, ct.IsCancellationRequested ? "stopped" : "timed out"); }
         catch (Exception e) { return new ClaudeRunner.Reply(false, "", null, e.Message); }
-        finally { turnLock.Release(); }
+        finally
+        {
+            turnLock.Release();
+            if (restartPending) { restartPending = false; Stop(); }
+        }
+    }
+
+    bool restartPending;
+
+    /// <summary>The model or effort changed: restart the process (resuming the same conversation) once no turn is running.</summary>
+    public void Restart()
+    {
+        if (Busy) { restartPending = true; return; }
+        Stop();
+        _ = Task.Run(WarmUp);
     }
 
     /// <summary>Forget the conversation: the next turn starts a new one.</summary>

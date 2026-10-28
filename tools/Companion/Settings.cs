@@ -28,6 +28,7 @@ public sealed class Settings
     public string? WhisperModel { get; set; }   // empty = %USERPROFILE%\.oni-advisor\models\ggml-small.en.bin
     public string? MicDevice { get; set; }      // part of the microphone's name; empty = "Microphone Array"   // false: dictated text goes into the input box to check first
     public bool TopMost { get; set; } = true;
+    public bool AutoStart { get; set; } = true;       // the mod starts this app in the background with the game
     public int TimeoutSeconds { get; set; } = 300;
 
     [JsonIgnore] public string FilePath { get; private set; } = "";
@@ -41,6 +42,14 @@ public sealed class Settings
         catch { s = new(); }
         s.FilePath = path;
         return s;
+    }
+
+    /// <summary>Re-reads the file into this instance (others hold a reference to it): the game's mod options edit it.</summary>
+    public void Reload()
+    {
+        var fresh = Load(FilePath);
+        foreach (var p in typeof(Settings).GetProperties())
+            if (p.CanWrite && p.GetCustomAttributes(typeof(JsonIgnoreAttribute), false).Length == 0) p.SetValue(this, p.GetValue(fresh));
     }
 
     public void Save()
