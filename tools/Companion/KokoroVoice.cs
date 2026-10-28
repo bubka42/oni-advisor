@@ -18,7 +18,7 @@ public sealed class KokoroVoice : IDisposable
     static readonly string[] Preferred = { "kokoro-multi-lang-v1_0", "kokoro-en-v0_19", "kokoro-int8-multi-lang-v1_1", "kokoro-multi-lang-v1_1" };
 
     readonly string dir;
-    readonly int speaker;
+    int speaker;
     readonly float speed;
     OfflineTts? tts;
     WaveOutEvent? output;
@@ -47,6 +47,9 @@ public sealed class KokoroVoice : IDisposable
     static int DefaultSpeaker(string dir) => Path.GetFileName(dir).Contains("v1_0") ? 3 : 0;
 
     public string Description => $"{Path.GetFileName(dir)}, voice {speaker}";
+
+    /// <summary>Switches voice without reloading the model (all voices share it); applies from the next sentence.</summary>
+    public int Speaker { get => speaker; set => speaker = value; }
 
     /// <summary>Loads the model (a few seconds); called in the background at start-up.</summary>
     public bool Load()

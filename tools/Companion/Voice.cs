@@ -22,6 +22,14 @@ public sealed class Voice : IDisposable
         if (kokoro != null) _ = Task.Run(kokoro.Load);
     }
 
+    /// <summary>A Kokoro voice picked in the game's mod options. False when Kokoro isn't in use.</summary>
+    public bool SetSpeaker(int id)
+    {
+        if (!UseKokoro) return false;
+        kokoro!.Speaker = id;
+        return true;
+    }
+
     bool UseKokoro => kokoro != null && kokoro.Error == null;
 
     public void Speak(string text)

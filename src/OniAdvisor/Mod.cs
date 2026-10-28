@@ -9,6 +9,7 @@ namespace OniAdvisor
         public override void OnLoad(Harmony harmony)
         {
             base.OnLoad(harmony);
+            ModOptions.Self = mod;
             Log.Info("loaded; output folder: " + Paths.LiveDir);
         }
     }

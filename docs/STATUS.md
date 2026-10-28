@@ -67,6 +67,10 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   `plan` thread. Calm moments trigger `review` turns (every `PlanReviewMinutes` = 12) to advance the plan.
 - **Kokoro v1.0** downloaded (`kokoro-multi-lang-v1_0`, 54 voices; default af_heart = 3): first audio ~0.8 s,
   RTF ~0.2 ? much faster than the int8 v1.1 model (which can be deleted).
+- **Voice picker** (`ModOptions.cs`): an OPTIONS button cloned from the advisor row's MANAGE button in the
+  game's Mods screen opens a dialog with the 28 English v1.0 voices (ids 0-27, confirmed from the model's
+  `id2speaker` metadata). A click writes `TtsSpeaker` into `companion.json` and sends a `voice` request; a
+  running companion switches speaker without reloading the model and speaks a sample.
 - Things most likely to need fixing on first run: typing (does the KScreenManager patch stop WASD/camera
   keys?), TMP input field focus, panel scroll/zoom, stream_event parsing, `--resume` of the old session,
   `(silent)` handling, Kokoro audio device.

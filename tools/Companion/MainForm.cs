@@ -271,6 +271,7 @@ public sealed class MainForm : Form
             case "new-chat": advisor.NewConversation(); chat.Add("note", "New conversation started.", ReadCycle()); break;
             case "stop": cts?.Cancel(); cts = null; voice.StopSpeaking(); break;
             case "speak-toggle": ToggleVoice(); break;
+            case "voice" when (int?)req["speaker"] is int id: ChooseVoice(id, (string?)req["name"]); break;
             default: System($"({trigger} from the game; auto-reply is off)"); break;
         }
     }
@@ -336,6 +337,16 @@ public sealed class MainForm : Form
         if (!on) voice.StopSpeaking();
         WriteStatus("notice", on ? "Advisor voice: on" : "Advisor voice: off");
         System(on ? "Voice on." : "Voice off.");
+    }
+
+    /// <summary>A voice picked in the game's mod options: switch now, remember it, and let the player hear it.</summary>
+    void ChooseVoice(int id, string? name)
+    {
+        settings.TtsSpeaker = id;
+        settings.Save();
+        if (!voice.SetSpeaker(id)) { System("Voice choice saved, but Kokoro isn't in use (" + voice.Engine + ")."); return; }
+        System($"Voice: {name ?? id.ToString()}.");
+        voice.Speak($"Hi, I'm {name ?? "your new voice"}. I'll keep an eye on the colony for you.");
     }
 
     /// <summary>Ctrl+Shift+C in the game: show this window without taking focus, or hide it again.</summary>
