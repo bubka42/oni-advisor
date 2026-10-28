@@ -659,6 +659,33 @@ public sealed class MainForm : Form
 
     string? lastAdviceLevel;
 
+    /// <summary>
+    /// The player's own instructions from the mod options (advisor/custom-prompt.md): sent when a conversation
+    /// starts and whenever they change, not with every message (the conversation remembers them).
+    /// </summary>
+    void AppendCustomInstructions(global::System.Text.StringBuilder sb)
+    {
+        string text = "";
+        try { var f = Path.Combine(advisorDir, "custom-prompt.md"); if (File.Exists(f)) text = File.ReadAllText(f).Trim(); } catch { }
+        // Remembered per conversation: "<session id>\n<text>". A new conversation (session id not yet assigned
+        // while the first message is being built) has seen nothing; "pending" is adopted by the next message.
+        string session = settings.SessionId ?? "pending";
+        string stored = settings.CustomPromptSent ?? "";
+        int nl = stored.IndexOf('\n');
+        string sentSession = nl >= 0 ? stored[..nl] : "", sentText = nl >= 0 ? stored[(nl + 1)..] : "";
+        if (sentSession == "pending" && session != "pending") sentSession = session;
+        if (sentSession != session) sentText = "";
+        if (text != sentText)
+        {
+            if (text.Length > 0)
+                sb.AppendLine("The player's own instructions for you (from the mod options; follow them, they outrank the defaults in CLAUDE.md and player.md; they replace any earlier version):\n<<<\n" + text + "\n>>>");
+            else
+                sb.AppendLine("The player removed their custom instructions from the mod options: drop them and go back to your defaults.");
+        }
+        string now = session + "\n" + text;
+        if (now != stored) { settings.CustomPromptSent = now; settings.Save(); }
+    }
+
     string BuildPrompt(string trigger, string? text, JsonObject? req, string view, string facts, string? thread)
     {
         var sb = new global::System.Text.StringBuilder();
@@ -671,6 +698,7 @@ public sealed class MainForm : Form
             if (lastAdviceLevel != null) sb.AppendLine($"The player changed the advice level to {settings.AdviceLevel.ToUpperInvariant()}: from now on, follow that level (CLAUDE.md, \"Advice level\").");
             lastAdviceLevel = settings.AdviceLevel;
         }
+        AppendCustomInstructions(sb);
         if (advisor.FreshConversation)
         {
             string recent = convo.Recent(20, 8000);

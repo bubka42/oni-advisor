@@ -95,7 +95,7 @@ namespace OniAdvisor
 
             var box = OniStyle.Rect("box", shade);
             box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(1120, 600);
+            box.sizeDelta = new Vector2(1120, 790);
             OniStyle.Fill(box, OniStyle.Panel, true);
 
             var header = OniStyle.Rect("header", box);
@@ -108,7 +108,7 @@ namespace OniAdvisor
 
             var body = OniStyle.Rect("body", box);
             OniStyle.Stretch(body, 18, 0);
-            body.offsetMax = new Vector2(-18, -52); body.offsetMin = new Vector2(18, 56);
+            body.offsetMax = new Vector2(-18, -52); body.offsetMin = new Vector2(18, 56 + CustomHeight);
             var cols = body.gameObject.AddComponent<HorizontalLayoutGroup>();
             cols.spacing = 28; cols.childControlWidth = cols.childControlHeight = true; cols.childForceExpandWidth = false; cols.childForceExpandHeight = true;
             var left = Column(body, 600, 0);
@@ -138,6 +138,8 @@ namespace OniAdvisor
             sh.childControlWidth = sh.childControlHeight = true; sh.childForceExpandWidth = false;
             OniStyle.MakeButton(show, "SHOW COMPANION WINDOW", () => Request("companion", null), 260);
             Text(right, "The companion app runs in the background (tray icon) and normally needs no attention; its window has the full log.", 13, false, 44, OniStyle.TextMuted);
+
+            CustomInstructions(box);
 
             var footer = OniStyle.Rect("footer", box);
             footer.anchorMin = Vector2.zero; footer.anchorMax = new Vector2(1, 0); footer.pivot = new Vector2(0.5f, 0);
@@ -263,9 +265,100 @@ namespace OniAdvisor
 
         static void Close()
         {
+            SaveCustom();
             if (dialog != null) UnityEngine.Object.Destroy(dialog);
             dialog = null;
+            customField = null;
             rows.Clear();
+        }
+
+        // ------------------------------------------------------------------ the player's own instructions
+
+        const float CustomHeight = 190;
+        const int CustomLimit = 2000;
+        static TMP_InputField customField;
+        static TextMeshProUGUI customCount;
+
+        /// <summary>
+        /// Optional instructions in the player's own words, saved to advisor/custom-prompt.md. The companion hands
+        /// them to the advisor when a conversation starts and whenever they change.
+        /// </summary>
+        static string CustomFile => Path.Combine(Path.GetDirectoryName(Paths.LiveDir), "custom-prompt.md");
+
+        /// <summary>While the player types here, the game's shortcuts (and Esc closing the Mods screen) stay quiet.</summary>
+        public static bool Typing => dialog != null && customField != null && customField.isFocused;
+
+        static void CustomInstructions(RectTransform box)
+        {
+            var area = OniStyle.Rect("custom", box);
+            area.anchorMin = Vector2.zero; area.anchorMax = new Vector2(1, 0); area.pivot = new Vector2(0.5f, 0);
+            area.sizeDelta = new Vector2(-36, CustomHeight - 8); area.anchoredPosition = new Vector2(0, 58);
+            var v = area.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 4; v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false; v.childForceExpandWidth = true;
+
+            var head = OniStyle.Rect("head", area);
+            head.gameObject.AddComponent<LayoutElement>().preferredHeight = 24;
+            var hh = head.gameObject.AddComponent<HorizontalLayoutGroup>();
+            hh.childControlWidth = hh.childControlHeight = true; hh.childForceExpandWidth = false;
+            var title = OniStyle.Rect("title", head);
+            title.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
+            OniStyle.Label(title, "YOUR INSTRUCTIONS FOR THE ADVISOR <size=13><color=#D2D4EB>(optional)</color></size>", 17, header: true, align: TextAlignmentOptions.BottomLeft, wrap: false).richText = true;
+            var count = OniStyle.Rect("count", head);
+            count.gameObject.AddComponent<LayoutElement>().preferredWidth = 120;
+            customCount = OniStyle.Label(count, "", 13, color: OniStyle.TextMuted, align: TextAlignmentOptions.BottomRight, wrap: false);
+
+            var box2 = OniStyle.Rect("input", area);
+            box2.gameObject.AddComponent<LayoutElement>().preferredHeight = CustomHeight - 40;
+            var bg = OniStyle.Fill(box2, OniStyle.Button, true);
+            var viewport = OniStyle.Rect("text-area", box2);
+            OniStyle.Stretch(viewport, 10, 6);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var placeholderRt = OniStyle.Rect("placeholder", viewport);
+            OniStyle.Stretch(placeholderRt);
+            var placeholder = OniStyle.Label(placeholderRt,
+                "Anything you want the advisor to keep in mind, in your own words. For example: \"Call me Captain.\" \"Answer in German.\" " +
+                "\"I'm going for a no-power-plant run.\" \"Don't mention research.\" Saved when you close this window.",
+                15, color: new Color(0.24f, 0.26f, 0.34f, 0.6f), align: TextAlignmentOptions.TopLeft);
+            var textRt = OniStyle.Rect("text", viewport);
+            OniStyle.Stretch(textRt);
+            var text = OniStyle.Label(textRt, "", 15, color: OniStyle.ButtonText, align: TextAlignmentOptions.TopLeft);
+            text.richText = false;
+
+            customField = box2.gameObject.AddComponent<TMP_InputField>();
+            customField.targetGraphic = bg;
+            customField.textViewport = viewport;
+            customField.textComponent = text;
+            customField.placeholder = placeholder;
+            if (OniStyle.BodyFont != null) customField.fontAsset = OniStyle.BodyFont;
+            customField.pointSize = 15;
+            customField.lineType = TMP_InputField.LineType.MultiLineNewline;
+            customField.characterLimit = CustomLimit;
+            customField.caretColor = OniStyle.ButtonText;
+            customField.customCaretColor = true;
+            try { if (File.Exists(CustomFile)) customField.text = File.ReadAllText(CustomFile).TrimEnd(); } catch { }
+            customField.onValueChanged.AddListener(_ => Count());
+            customField.onEndEdit.AddListener(_ => SaveCustom());
+            Count();
+        }
+
+        static void Count()
+        {
+            if (customField != null && customCount != null) customCount.text = $"{customField.text.Length} / {CustomLimit}";
+        }
+
+        static void SaveCustom()
+        {
+            if (customField == null) return;
+            try
+            {
+                string text = customField.text.Trim();
+                string old = File.Exists(CustomFile) ? File.ReadAllText(CustomFile).Trim() : "";
+                if (text == old) return;
+                if (text.Length == 0) File.Delete(CustomFile);
+                else Paths.WriteAtomic(CustomFile, text + "\n");
+                AdvisorHud.Show(text.Length == 0 ? "Advisor instructions cleared" : "Advisor instructions saved", 2.5f);
+            }
+            catch (Exception e) { Log.Warn("custom instructions not saved: " + e.Message); }
         }
 
         static int ReadVoice() => (int?)ReadSetting("TtsSpeaker") ?? DefaultVoice;

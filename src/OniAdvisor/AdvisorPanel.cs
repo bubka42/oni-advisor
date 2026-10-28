@@ -544,14 +544,15 @@ namespace OniAdvisor
         }
     }
 
-    /// <summary>While the player types in the advisor's chat box, the game's keyboard shortcuts stay quiet,
+    /// <summary>While the player types in the advisor's chat box (or the custom instructions in the mod options), the
+    /// game's keyboard shortcuts stay quiet,
     /// and scrolling over the panel doesn't zoom the camera.</summary>
     [HarmonyLib.HarmonyPatch(typeof(KScreenManager), nameof(KScreenManager.OnKeyDown))]
     internal static class KScreenManager_OnKeyDown_Patch
     {
         static bool Prefix(KButtonEvent e)
         {
-            if (AdvisorPanel.Typing) { e.Consumed = true; return false; }
+            if (AdvisorPanel.Typing || ModOptions.Typing) { e.Consumed = true; return false; }
             if (AdvisorPanel.PointerOver && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) { e.Consumed = true; return false; }
             return true;
         }
@@ -562,7 +563,7 @@ namespace OniAdvisor
     {
         static bool Prefix(KButtonEvent e)
         {
-            if (AdvisorPanel.Typing) { e.Consumed = true; return false; }
+            if (AdvisorPanel.Typing || ModOptions.Typing) { e.Consumed = true; return false; }
             return true;
         }
     }

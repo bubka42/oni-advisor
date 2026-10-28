@@ -30,6 +30,7 @@ public sealed class Settings
     public string? MicDevice { get; set; }      // part of the microphone's name; empty = "Microphone Array"   // false: dictated text goes into the input box to check first
     public bool TopMost { get; set; } = true;
     public bool AutoStart { get; set; } = true;       // the mod starts this app in the background with the game
+    public string? CustomPromptSent { get; set; }     // the custom instructions (custom-prompt.md) the current conversation has seen
     public int TimeoutSeconds { get; set; } = 300;
 
     [JsonIgnore] public string FilePath { get; private set; } = "";

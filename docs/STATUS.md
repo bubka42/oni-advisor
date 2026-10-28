@@ -78,6 +78,10 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   effort, proactivity, plan review interval, speech on/off, voice speed, auto-start (companion reloads on a
   `settings` request; model/effort changes restart the claude process, resuming the conversation).
   Delegated commands in "ask" mode get an APPROVE / DECLINE card at the top of the game screen (`Approvals`).
+- **Custom instructions** (OPTIONS dialog, bottom; up to 2000 characters): saved to `advisor/custom-prompt.md`
+  when the box loses focus or the dialog closes. The companion sends them once per conversation and again
+  when they change (tracked per session id in `CustomPromptSent`); the advisor's CLAUDE.md ranks them above
+  its defaults and `player.md`. Game shortcuts are blocked while typing there (same KScreenManager patch).
 - **Advice level** (`AdviceLevel`: standard | light | minimal | teacher; in the OPTIONS dialog). Defined in
   the advisor's CLAUDE.md ("Advice level"); every prompt carries `[advice level: …]`, plus a one-time note when
   it changes. The companion enforces the coarse part: minimal = only serious events prompt updates, no plan
