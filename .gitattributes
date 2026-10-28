@@ -1,0 +1,7 @@
+# Same line endings on every checkout, so builds are byte-identical on any machine (multi-line string
+# literals end up in the DLL).
+* text=auto
+*.cs text eol=crlf
+*.csproj text eol=crlf
+*.sh text eol=lf
+*.dll binary
