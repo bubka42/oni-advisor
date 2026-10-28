@@ -38,7 +38,10 @@ namespace OniAdvisor
 
         static GameObject dialog;
         static int selected;
-        static readonly System.Collections.Generic.List<(int id, Image img)> rows = new System.Collections.Generic.List<(int, Image)>();
+        static readonly System.Collections.Generic.List<(int id, Button button, TextMeshProUGUI label, string name)> rows = new System.Collections.Generic.List<(int, Button, TextMeshProUGUI, string)>();
+        static TextMeshProUGUI currentVoice;
+        static RectTransform popup;   // an open dropdown list (with its click-catcher behind it)
+        static GameObject popupBlocker;
 
         [HarmonyPatch(typeof(ModsScreen), "BuildDisplay")]
         static class AddButton
@@ -115,7 +118,8 @@ namespace OniAdvisor
             var right = Column(body, 0, 1);
 
             Text(left, "VOICE", 17, true, 24);
-            Text(left, "Click a voice to hear it. Takes effect at once and is remembered.", 14, false, 24, OniStyle.TextMuted);
+            currentVoice = Text(left, "", 15, false, 24);
+            Text(left, "Click a voice to hear it. Takes effect at once and is remembered.", 14, false, 22, OniStyle.TextMuted);
             foreach (var (group, voices) in Voices)
             {
                 Text(left, group, 14, true, 24, OniStyle.TextMuted);
@@ -124,7 +128,7 @@ namespace OniAdvisor
                 g.cellSize = new Vector2(141, 28); g.spacing = new Vector2(6, 4); g.constraint = GridLayoutGroup.Constraint.FixedColumnCount; g.constraintCount = 4;
                 int lines = (voices.Length + 3) / 4;
                 grid.gameObject.AddComponent<LayoutElement>().preferredHeight = lines * 28 + (lines - 1) * 4;
-                foreach (var (id, name) in voices) rows.Add((id, VoiceButton(grid, id, name)));
+                foreach (var (id, name) in voices) { var (b, l) = VoiceButton(grid, id, name); rows.Add((id, b, l, name)); }
             }
             Paint();
 
@@ -192,54 +196,130 @@ namespace OniAdvisor
             lr.gameObject.AddComponent<LayoutElement>().preferredWidth = 170;
             OniStyle.Label(lr, c.Label, 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
 
+            // A dropdown: the current value with a ▼; clicking opens the list of values under it.
             var br = OniStyle.Rect("value", row);
             br.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-            var img = OniStyle.Fill(br, OniStyle.Row, true);
+            var img = OniStyle.Fill(br, Color.white, true);
             var b = br.gameObject.AddComponent<Button>();
             b.targetGraphic = img;
-            var colors = b.colors; colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f); b.colors = colors;
+            var colors = b.colors; colors.normalColor = colors.selectedColor = OniStyle.Row; colors.highlightedColor = OniStyle.RowActive; b.colors = colors;
             var tr = OniStyle.Rect("text", br);
             OniStyle.Stretch(tr, 8, 0);
             var text = OniStyle.Label(tr, "", 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            var ar = OniStyle.Rect("arrow", br);
+            ar.anchorMin = new Vector2(1, 0); ar.anchorMax = Vector2.one; ar.pivot = new Vector2(1, 0.5f);
+            ar.sizeDelta = new Vector2(24, 0); ar.anchoredPosition = new Vector2(-4, 0);
+            OniStyle.Label(ar, "V", 13, header: true, color: OniStyle.TextMuted, align: TextAlignmentOptions.Center, wrap: false); // the game font may lack ▼
 
             int index = Math.Max(0, Array.FindIndex(c.Values, v => JToken.DeepEquals(Normal(v.value), Normal(ReadSetting(c.Key)))));
-            text.text = c.Values[index].text + "  ›";
-            b.onClick.AddListener(() =>
+            text.text = c.Values[index].text;
+            b.onClick.AddListener(() => OpenDropdown(br, c, index, picked =>
             {
-                index = (index + 1) % c.Values.Length;
-                text.text = c.Values[index].text + "  ›";
+                index = picked;
+                text.text = c.Values[index].text;
                 WriteSetting(c.Key, c.Values[index].value);
                 Request("settings", null);
-            });
+            }));
+        }
+
+        /// <summary>The list of a setting's values, opened under its button; a click outside closes it.</summary>
+        static void OpenDropdown(RectTransform anchor, Choice c, int current, Action<int> onPick)
+        {
+            CloseDropdown();
+            if (dialog == null) return;
+            var shade = (RectTransform)dialog.transform;
+
+            var blocker = OniStyle.Rect("dropdown-blocker", shade);
+            OniStyle.Stretch(blocker);
+            var bimg = OniStyle.Fill(blocker, new Color(0, 0, 0, 0.001f), true);
+            blocker.gameObject.AddComponent<Button>().onClick.AddListener(CloseDropdown);
+            popupBlocker = blocker.gameObject;
+
+            popup = OniStyle.Rect("dropdown", shade);
+            popup.pivot = new Vector2(0, 1);
+            var corners = new Vector3[4];
+            anchor.GetWorldCorners(corners); // [0] bottom-left
+            popup.position = corners[0];
+            popup.sizeDelta = new Vector2(anchor.rect.width, 0);
+            OniStyle.Fill(popup, OniStyle.PanelDark, true);
+            var v = popup.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.padding = new RectOffset(2, 2, 2, 2); v.spacing = 2;
+            v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false;
+            popup.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            for (int i = 0; i < c.Values.Length; i++)
+            {
+                int pick = i;
+                var item = OniStyle.Rect("option", popup);
+                item.gameObject.AddComponent<LayoutElement>().preferredHeight = 28;
+                var iimg = OniStyle.Fill(item, Color.white, true);
+                var ib = item.gameObject.AddComponent<Button>();
+                ib.targetGraphic = iimg;
+                var lt = OniStyle.Rect("label", item);
+                OniStyle.Stretch(lt, 8, 0);
+                var label = OniStyle.Label(lt, "", 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+                label.richText = true;
+                Tint(ib, label, i == current, c.Values[i].text);
+                ib.onClick.AddListener(() => { CloseDropdown(); onPick(pick); });
+            }
+            popup.SetAsLastSibling();
+        }
+
+        static void CloseDropdown()
+        {
+            if (popup != null) UnityEngine.Object.Destroy(popup.gameObject);
+            if (popupBlocker != null) UnityEngine.Object.Destroy(popupBlocker);
+            popup = null; popupBlocker = null;
         }
 
         /// <summary>1 and 1.0 compare equal.</summary>
         static JToken Normal(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float) ? new JValue((double)t) : t;
 
-        static void Text(Transform parent, string text, float size, bool header, float height, Color? color = null)
+        static TextMeshProUGUI Text(Transform parent, string text, float size, bool header, float height, Color? color = null)
         {
             var rt = OniStyle.Rect("text", parent);
             rt.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
-            OniStyle.Label(rt, text, size, header: header, color: color, align: TextAlignmentOptions.BottomLeft);
+            var t = OniStyle.Label(rt, text, size, header: header, color: color, align: TextAlignmentOptions.BottomLeft);
+            t.richText = true;
+            return t;
         }
 
-        static Image VoiceButton(Transform parent, int id, string name)
+        static (Button, TextMeshProUGUI) VoiceButton(Transform parent, int id, string name)
         {
             var rt = OniStyle.Rect("voice-" + name, parent);
-            var img = OniStyle.Fill(rt, OniStyle.Row, true);
+            var img = OniStyle.Fill(rt, Color.white, true); // white base: the button's own colours (below) do the tinting
             var b = rt.gameObject.AddComponent<Button>();
             b.targetGraphic = img;
-            var colors = b.colors; colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f); b.colors = colors;
             b.onClick.AddListener(() => Choose(id));
             var lt = OniStyle.Rect("label", rt);
             OniStyle.Stretch(lt, 6, 0);
-            OniStyle.Label(lt, name, 15, align: TextAlignmentOptions.Midline, wrap: false);
-            return img;
+            var label = OniStyle.Label(lt, name, 15, align: TextAlignmentOptions.Midline, wrap: false);
+            label.richText = true;
+            return (b, label);
         }
 
+        /// <summary>
+        /// The chosen voice is shown inverted (light button, dark bold text) and named above the list. Colours go
+        /// through the button's own colour block: it tints over the image, so setting the image colour alone
+        /// could be overridden by the button's state transitions.
+        /// </summary>
         static void Paint()
         {
-            foreach (var (id, img) in rows) img.color = id == selected ? OniStyle.Header : OniStyle.Row;
+            foreach (var (id, button, label, name) in rows) Tint(button, label, id == selected, name);
+            var group = Voices.FirstOrDefault(g => g.voices.Any(v => v.id == selected)).group;
+            if (currentVoice != null) currentVoice.text = $"Current voice: <b>{NameOf(selected) ?? "?"}</b>" + (group != null ? $"  <color=#D2D4EB>({group.ToLowerInvariant()})</color>" : "");
+        }
+
+        static void Tint(Button button, TextMeshProUGUI label, bool on, string text)
+        {
+            var colors = button.colors;
+            var normal = on ? OniStyle.Button : OniStyle.Row;
+            colors.normalColor = normal;
+            colors.selectedColor = normal;
+            colors.highlightedColor = on ? Color.white : OniStyle.RowActive;
+            colors.pressedColor = OniStyle.HeaderLight;
+            button.colors = colors;
+            label.color = on ? OniStyle.ButtonText : OniStyle.Text;
+            label.text = on ? $"<b>{text}</b>" : text;
         }
 
         static void Choose(int id)
@@ -266,6 +346,7 @@ namespace OniAdvisor
 
         static void Close()
         {
+            CloseDropdown();
             SaveCustom();
             if (dialog != null) UnityEngine.Object.Destroy(dialog);
             dialog = null;
