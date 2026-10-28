@@ -93,6 +93,8 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   caption (which types at the voice's pace) reaches its `at` phrase in `say`, or spread through the narration
   in listed order; the step's project ghost at `projectAt` (else at the start). Space freezes the caption
   and the marks; continuing replays the step.
+  Project ghosts build up piece by piece (`ProjectStore.ForceShow(id, count)`): one `projectAt` phrase per item,
+  or spread from the first phrase to 90% of the narration.
 - **Colonies** (`ColonyFiles.cs`, companion `CheckColony`): on load, the previous colony's advisor files move from
   live/ to advisor/colonies/<colony>/ and the loaded colony's come back; live/colony.json names the colony.
   The companion keeps a session per colony (`ColonySessions`), resumes it or starts fresh, and re-reads the

@@ -449,8 +449,11 @@ step's marks and project, and reads each `say` aloud.
   numbers highlighted, so put the key quantity in it ("makes 888 g/s of oxygen").
 - Your marks are drawn as quick hand-drawn sketches (circles around points and buildings, sketched
   boxes, pen arrows) **at the moment the narration reaches them**: give each mark `"at"`, a short phrase
-  copied exactly from that step's `say` (the mark appears as the caption and voice get there), and the
-  step `"projectAt"` for the project's ghost. Marks without `"at"` are spread through the narration in the
+  copied exactly from that step's `say` (the mark appears as the caption and voice get there). The
+  project's ghost builds up piece by piece while you talk: `"projectAt": "the generator"` starts it at
+  that phrase (the pieces follow through the rest of the narration, in the project's item order), or give
+  one phrase per item (`"projectAt": ["generator", "a gas pump", "pipe it"]`) to place each piece exactly.
+  So order a project's items in the order you would explain building them. Marks without `"at"` are spread through the narration in the
   order you list them, so list them in the order you talk about them. Keep labels to a few words.
 - After writing it, reply with one sentence on what it covers.
 - Update `../<colony>-plan.md` when goals or decisions change.

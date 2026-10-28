@@ -23,7 +23,8 @@ namespace OniAdvisor
     {
         sealed class Step
         {
-            public string Title, Say, Text, Zoom, Project, ProjectAt;
+            public string Title, Say, Text, Zoom, Project;
+            public List<string> ProjectAt = new List<string>(); // one phrase (where the ghost starts) or one per piece
             public int[] Focus;
             public RectInt? Spotlight;     // the area to keep lit (from "spotlight", else the marks, else the focus)
             public bool NoSpotlight;       // "spotlight": false
@@ -115,8 +116,9 @@ namespace OniAdvisor
                     Text = (string)s["text"],
                     Zoom = ((string)s["zoom"] ?? "base").ToLowerInvariant(),
                     Project = (string)s["project"],
-                    ProjectAt = (string)s["projectAt"],
                 };
+                if (s["projectAt"] is JArray pa) step.ProjectAt.AddRange(pa.Select(p => (string)p));
+                else if (s["projectAt"] != null) step.ProjectAt.Add((string)s["projectAt"]);
                 if (s["focus"] is JArray f && f.Count >= 2) step.Focus = new[] { (int)f[0], (int)f[1] };
                 if (s["spotlight"] is JArray sp && sp.Count >= 4)
                     step.Spotlight = new RectInt(Math.Min((int)sp[0], (int)sp[2]), Math.Min((int)sp[1], (int)sp[3]), Math.Abs((int)sp[2] - (int)sp[0]) + 1, Math.Abs((int)sp[3] - (int)sp[1]) + 1);
@@ -273,7 +275,8 @@ namespace OniAdvisor
         // ------------------------------------------------------------------ marks in time with the narration
 
         static readonly List<(int at, Mark mark, int id)> dueMarks = new List<(int, Mark, int)>();
-        static int projectDueAt = -1;
+        static readonly List<int> pieceTimes = new List<int>(); // when each piece of the step's project appears
+        static int piecesShown = -1;
         static string projectDue;
 
         /// <summary>
@@ -295,7 +298,28 @@ namespace OniAdvisor
             }
             dueMarks.Sort((a, b) => a.at.CompareTo(b.at));
             projectDue = s.Project;
-            projectDueAt = string.IsNullOrEmpty(s.Project) ? -1 : Math.Max(0, Find(say, s.ProjectAt));
+            SchedulePieces(s, say);
+        }
+
+        /// <summary>
+        /// The project's pieces, one after another: each at its own phrase when "projectAt" lists one per piece,
+        /// otherwise spread from the project's phrase (or the start) to near the end of the narration.
+        /// </summary>
+        static void SchedulePieces(Step s, string say)
+        {
+            pieceTimes.Clear();
+            piecesShown = -1;
+            if (string.IsNullOrEmpty(s.Project)) return;
+            int count = Math.Max(1, ProjectStore.ItemCount(s.Project));
+            if (s.ProjectAt.Count >= count)
+            {
+                int last = 0;
+                for (int k = 0; k < count; k++) { int at = Find(say, s.ProjectAt[k]); last = at >= 0 ? Math.Max(last, at) : last; pieceTimes.Add(last); }
+                return;
+            }
+            int start = s.ProjectAt.Count > 0 ? Math.Max(0, Find(say, s.ProjectAt[0])) : (int)(say.Length * 0.05f);
+            int end = Math.Max(start, (int)(say.Length * 0.9f));
+            for (int k = 0; k < count; k++) pieceTimes.Add(start + (count == 1 ? 0 : (end - start) * k / (count - 1)));
         }
 
         /// <summary>Where a phrase starts in the spoken text (case-insensitive), or -1.</summary>
@@ -305,7 +329,7 @@ namespace OniAdvisor
         /// <summary>Every frame while playing: draw what the narration has reached.</summary>
         static void DrawDue()
         {
-            if (dueMarks.Count == 0 && projectDueAt < 0) return;
+            if (dueMarks.Count == 0 && pieceTimes.Count == 0) return;
             int spoken = BriefingStage.SpokenChars;
             while (dueMarks.Count > 0 && dueMarks[0].at <= spoken)
             {
@@ -314,10 +338,15 @@ namespace OniAdvisor
                 try { PlanMarks.DrawAdvisorMark(stepLayer, mark, id); }
                 catch (Exception e) { Log.Warn("briefing mark: " + e.Message); }
             }
-            if (projectDueAt >= 0 && projectDueAt <= spoken)
+            if (pieceTimes.Count > 0)
             {
-                projectDueAt = -1;
-                ProjectStore.ForceShow(projectDue);
+                int shown = pieceTimes.Count(t => t <= spoken);
+                if (shown != piecesShown && shown > 0)
+                {
+                    piecesShown = shown;
+                    ProjectStore.ForceShow(projectDue, shown >= pieceTimes.Count ? -1 : shown);
+                    if (shown >= pieceTimes.Count) pieceTimes.Clear(); // all there
+                }
             }
         }
 

@@ -166,7 +166,7 @@ namespace OniAdvisor
                     sb.Append(it.Status).Append(it.Built).Append(it.Ordered).Append('|');
                 }
             }
-            string key = sb + "/" + focus + "/" + Overlays.ShowProjects + "/" + forcedId;
+            string key = sb + "/" + focus + "/" + Overlays.ShowProjects + "/" + forcedId + "/" + forcedCount;
             if (key != lastDrawKey)
             {
                 lastDrawKey = key;
@@ -305,11 +305,16 @@ namespace OniAdvisor
         // ------------------------------------------------------------------ drawing
 
         static string forcedId; // briefing step showing one project
+        static int forcedCount = -1; // how many of its pieces (a briefing builds it up as it narrates); -1 = all
 
-        /// <summary>Shows just this project (even with the overlay off) until called with null.</summary>
-        public static void ForceShow(string projectId)
+        /// <summary>
+        /// Shows just this project (even with the overlay off) until called with null; with a count, only its first
+        /// pieces, so a briefing can build the ghost up piece by piece as it talks.
+        /// </summary>
+        public static void ForceShow(string projectId, int count = -1)
         {
             forcedId = string.IsNullOrEmpty(projectId) ? null : projectId;
+            forcedCount = forcedId == null ? -1 : count;
             lastDrawKey = "";
             Refresh();
         }
@@ -347,6 +352,7 @@ namespace OniAdvisor
                 foreach (var it in p.Items)
                 {
                     n++;
+                    if (forcedId != null && forcedCount >= 0 && n > forcedCount) break; // not narrated yet
                     var col = StatusColor(it.Status);
                     if (it.Type == "building")
                     {
@@ -440,6 +446,9 @@ namespace OniAdvisor
 
         /// <summary>The projects, for the advisor panel: id, name, progress line.</summary>
         public static List<(string id, string name, string progress)> List() => projects.Select(p => (p.Id, p.Name, Progress(p))).ToList();
+
+        /// <summary>How many pieces a project has (briefings reveal them one by one).</summary>
+        public static int ItemCount(string id) => Find(id)?.Items.Count ?? 0;
 
         /// <summary>
         /// Places build orders for a whole project where it was planned: buildings, pipes, wires, rails and
