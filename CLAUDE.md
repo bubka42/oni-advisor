@@ -6,6 +6,9 @@ goals and preferences, the earlier screenshot-based phase, and how the design ev
 
 Key facts:
 - .NET SDK: `%USERPROFILE%\.dotnet\dotnet.exe` (not on PATH). Mod targets net48; tools target net8.
+- The mod compiles against `lib/` (Refasmer reference assemblies, no game code), not the installed game;
+  after a game update that changes APIs the mod uses, run `tools/update-lib.sh`. CI: `.github/workflows/build.yml`
+  (draft release + provenance attestation on `v*` tags). Remote: `git@github.com:bubka42/oni-advisor.git`.
 - Deploy the mod only with ONI closed: `dotnet build src/OniAdvisor/OniAdvisor.csproj -c Release -p:Deploy=true`.
 - The mod starts the companion in the background when ONI starts (`OniAdvisorCompanion.exe --background
   --game-pid N`, path from `companion-path.txt` in the deployed mod folder); it quits with the game. Building

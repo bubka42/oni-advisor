@@ -12,10 +12,14 @@
     <GenerateDependencyFile>false</GenerateDependencyFile>
     <DebugType>none</DebugType>
 
-    <!-- Override on the command line if the game lives elsewhere: -p:GameDir=... -->
+    <!-- Compiled against the reference assemblies in lib/ (no game code; see lib/README.md), so the build
+         needs no game install and is the same on every machine. To compile against the installed game
+         instead: -p:UseGame=true (and -p:GameDir=... if it lives elsewhere). -->
     <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded</GameDir>
-    <GameManaged>$(GameDir)\OxygenNotIncluded_Data\Managed</GameManaged>
-    <ModDeployDir Condition="'$(ModDeployDir)' == ''">$(USERPROFILE)\OneDrive\Documents\Klei\OxygenNotIncluded\mods\Dev\OniAdvisor</ModDeployDir>
+    <GameManaged Condition="'$(UseGame)' == 'true'">$(GameDir)\OxygenNotIncluded_Data\Managed</GameManaged>
+    <GameManaged Condition="'$(UseGame)' != 'true'">$(MSBuildThisFileDirectory)..\..\lib</GameManaged>
+    <!-- Documents may be redirected (e.g. to OneDrive); GetFolderPath follows that. -->
+    <ModDeployDir Condition="'$(ModDeployDir)' == ''">$([System.Environment]::GetFolderPath(SpecialFolder.MyDocuments))\Klei\OxygenNotIncluded\mods\Dev\OniAdvisor</ModDeployDir>
   </PropertyGroup>
 
   <ItemGroup>

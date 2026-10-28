@@ -1,0 +1,79 @@
+# Builds everything from source on every push and pull request. A version tag (v*) also publishes a GitHub
+# release whose files carry a signed build-provenance attestation: proof that they were built by this
+# workflow from that tagged commit. Check a download with:  gh attestation verify <file> -R bubka42/oni-advisor
+# The mod DLL is reproducible: building the same tag locally (dotnet build -c Release
+# -p:ContinuousIntegrationBuild=true) gives the same SHA-256 as in SHA256SUMS.txt.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # The mod compiles against the reference assemblies in lib/ (no game install needed).
+      - name: Build the mod
+        run: dotnet build src/OniAdvisor/OniAdvisor.csproj -c Release
+
+      - name: Build MapQuery
+        run: dotnet build tools/MapQuery/MapQuery.csproj -c Release
+
+      - name: Publish the companion (self-contained, no .NET install needed)
+        run: dotnet publish tools/Companion/Companion.csproj -c Release -r win-x64 --self-contained -o out/companion
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/mod/OniAdvisor, dist | Out-Null
+          Copy-Item src/OniAdvisor/bin/Release/OniAdvisor.dll, src/OniAdvisor/mod.yaml, src/OniAdvisor/mod_info.yaml out/mod/OniAdvisor/
+          Copy-Item src/OniAdvisor/bin/Release/OniAdvisor.dll dist/
+          Compress-Archive -Path out/mod/OniAdvisor -DestinationPath dist/OniAdvisor-mod.zip
+          Compress-Archive -Path out/companion/* -DestinationPath dist/OniAdvisor-companion-win-x64.zip
+          Get-ChildItem dist -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oni-advisor
+          path: dist/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release
+      id-token: write      # sign the attestation
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: oni-advisor
+          path: dist
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes --draft

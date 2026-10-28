@@ -64,17 +64,22 @@ terminal once and type `/login`.
 
 ## Build
 
-Needs the .NET SDK 8 and the game installed. `tools/deploy.ps1` builds everything and copies the mod
-into `mods/Dev/OniAdvisor` (close the game first). Or individually:
+Needs only the .NET SDK 8 (version pinned in `global.json`); the game is not needed to build. The mod
+compiles against `lib/`, reference-only copies of the game's assemblies with all code removed (see
+`lib/README.md`; regenerate after a game update with `tools/update-lib.sh`). Builds are reproducible.
 
 ```
-dotnet build src/OniAdvisor/OniAdvisor.csproj -c Release -p:Deploy=true
+dotnet build src/OniAdvisor/OniAdvisor.csproj -c Release -p:Deploy=true   # also copies the mod into mods/Dev (close the game first)
 dotnet build tools/MapQuery/MapQuery.csproj -c Release
 dotnet build tools/Companion/Companion.csproj -c Release
 ```
 
-Pass `-p:GameDir=...` if the game is not in the default Steam folder. Enable "ONI Advisor" in the
-game's Mods menu and restart the game.
+Enable "ONI Advisor" in the game's Mods menu and restart the game.
+
+**Releases** are built by GitHub Actions (`.github/workflows/build.yml`) from a `v*` tag, with a signed
+build-provenance attestation for every file: `gh attestation verify <file> -R bubka42/oni-advisor`. To
+check the mod DLL yourself, build the tag with `-p:ContinuousIntegrationBuild=true` and compare its
+SHA-256 with `SHA256SUMS.txt` in the release.
 
 ## Stages
 
