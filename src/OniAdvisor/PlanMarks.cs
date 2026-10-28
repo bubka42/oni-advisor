@@ -182,7 +182,7 @@ namespace OniAdvisor
                 if (Advisor.Count > 0 && !Overlays.ShowMarks)
                 {
                     Overlays.ShowMarksNow();
-                    AdvisorHud.Show($"The advisor marked {Advisor.Count} thing(s) on your map  (Ctrl+Shift+M: overlay)", 4f);
+                    AdvisorHud.Show($"The advisor marked {Advisor.Count} thing(s) on your map  ({Hotkeys.Describe("overlay")}: overlay)", 4f);
                 }
             }
             catch (Exception e) { Log.Warn("advisor marks load failed: " + e.Message); }

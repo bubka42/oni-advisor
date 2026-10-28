@@ -40,5 +40,11 @@ namespace OniAdvisor
 
         /// <summary>Showing where the advisor looks while the player waits: off, captions, or camera (captions + camera).</summary>
         public static string ShowThinking => (string)Json["ShowThinking"] ?? "captions";
+
+        /// <summary>Hotkey preset: standard (Ctrl+Shift+letter), simple (single keys) or custom.</summary>
+        public static string HotkeyPreset => (string)Json["HotkeyPreset"] ?? "standard";
+
+        /// <summary>The custom bindings {action: "Ctrl+Shift+T"}, used with the custom preset.</summary>
+        public static JObject CustomHotkeys => Json["Hotkeys"] as JObject;
     }
 }

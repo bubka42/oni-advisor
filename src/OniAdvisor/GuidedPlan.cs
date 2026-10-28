@@ -40,7 +40,7 @@ namespace OniAdvisor
             {
                 var tool = PlayerController.Instance != null ? PlayerController.Instance.ActiveTool : null;
                 var def = tool == BuildTool.Instance && BuildTool.Instance != null ? Traverse.Create(BuildTool.Instance).Field("def").GetValue<BuildingDef>() : null;
-                if (def == null) { AdvisorHud.Show("Pick a building from the build menu first, hover where you want it, then press Ctrl+Shift+G", 5f); return; }
+                if (def == null) { AdvisorHud.Show($"Pick a building from the build menu first, hover where you want it, then press {Hotkeys.Describe("guide")}", 5f); return; }
                 var cam = Camera.main;
                 int cell = cam != null ? Grid.PosToCell(cam.ScreenToWorldPoint(Input.mousePosition)) : Grid.InvalidCell;
                 if (!Grid.IsValidCell(cell)) return;

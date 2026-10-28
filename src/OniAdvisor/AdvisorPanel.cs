@@ -46,6 +46,11 @@ namespace OniAdvisor
         /// <summary>True while the player is typing in the chat box: the game must not see the keys.</summary>
         public static bool Typing => open && input != null && input.isFocused;
 
+        static int lastTypingFrame = -10;
+
+        /// <summary>The player was typing a frame ago: the Esc that left the box must not also close the panel.</summary>
+        public static bool JustLeftTyping => Time.frameCount - lastTypingFrame <= 1;
+
         /// <summary>True when the mouse is over the panel (scrolling it must not zoom the camera).</summary>
         public static bool PointerOver => open && panel != null && RectTransformUtility.RectangleContainsScreenPoint(panel, Input.mousePosition, null);
 
@@ -117,6 +122,7 @@ namespace OniAdvisor
         public static void Tick(float now)
         {
             if (!open) return;
+            if (Typing) lastTypingFrame = Time.frameCount;
             if (Typing && Input.GetKeyDown(KeyCode.Escape)) { input.DeactivateInputField(); UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(null); }
             else if (!Typing && page == Page.Chat && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))) Focus();
             if (now < nextPoll) return;
@@ -590,17 +596,32 @@ namespace OniAdvisor
         }
     }
 
-    /// <summary>While the player types in the advisor's chat box (or the custom instructions in the mod options), the
-    /// game's keyboard shortcuts stay quiet,
-    /// and scrolling over the panel doesn't zoom the camera.</summary>
+    /// <summary>
+    /// Keys the game must not see: everything while the player types in the advisor's text boxes; the advisor's
+    /// own hotkeys (single keys in the simple preset would otherwise also trigger the game's tools); Space,
+    /// the arrows and Esc while a briefing plays; Esc while the advisor panel is open (it closes the panel,
+    /// not the game's menu); and zooming while the pointer is over the panel.
+    /// </summary>
+    internal static class AdvisorKeys
+    {
+        internal static bool Swallow(KButtonEvent e, bool down)
+        {
+            if (AdvisorPanel.Typing || ModOptions.Typing || AdvisorPanel.JustLeftTyping) return true;
+            if (Briefing.IsOpen && (e.IsAction(Action.Escape) || e.IsAction(Action.TogglePause) || e.IsAction(Action.PanLeft) || e.IsAction(Action.PanRight))) return true;
+            if (AdvisorPanel.IsOpen && e.IsAction(Action.Escape)) return true;
+            if (down && AdvisorPanel.PointerOver && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) return true;
+            return Hotkeys.IsOursNow();
+        }
+    }
+
     [HarmonyLib.HarmonyPatch(typeof(KScreenManager), nameof(KScreenManager.OnKeyDown))]
     internal static class KScreenManager_OnKeyDown_Patch
     {
         static bool Prefix(KButtonEvent e)
         {
-            if (AdvisorPanel.Typing || ModOptions.Typing) { e.Consumed = true; return false; }
-            if (AdvisorPanel.PointerOver && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) { e.Consumed = true; return false; }
-            return true;
+            if (!AdvisorKeys.Swallow(e, down: true)) return true;
+            e.Consumed = true;
+            return false;
         }
     }
 
@@ -609,8 +630,9 @@ namespace OniAdvisor
     {
         static bool Prefix(KButtonEvent e)
         {
-            if (AdvisorPanel.Typing || ModOptions.Typing) { e.Consumed = true; return false; }
-            return true;
+            if (!AdvisorKeys.Swallow(e, down: false)) return true;
+            e.Consumed = true;
+            return false;
         }
     }
 }

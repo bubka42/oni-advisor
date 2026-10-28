@@ -49,7 +49,7 @@ namespace OniAdvisor
                 try { PlayerController.Instance.ActivateTool(PlanTool.Instance); }
                 catch (Exception e) { Log.Warn("plan tool activation failed, using fallback: " + e.Message); }
             }
-            AdvisorHud.Show("Planning mode: game paused. Drag = area, Shift+drag = line, click = point. Ctrl+Shift+P = send", 5f);
+            AdvisorHud.Show($"Planning mode: game paused. Drag = area, Shift+drag = line, click = point. {Hotkeys.Describe("plan")} = send", 5f);
             Log.Info("planning mode on");
         }
 
@@ -108,7 +108,7 @@ namespace OniAdvisor
                 var area = GridVisibleArea.GetVisibleArea();
                 float x = (area.Min.x + area.Max.x) / 2f;
                 float y = area.Max.y - 3f;
-                hint.Label(x, y, "PLANNING  drag: area   Shift+drag: line   click: point   right-click: delete   Ctrl+Shift+P: send   Esc: leave", new Color(1f, 0.9f, 0.3f, 1f));
+                hint.Label(x, y, $"PLANNING  drag: area   Shift+drag: line   click: point   right-click: delete   {Hotkeys.Describe("plan")}: send   Esc: leave", new Color(1f, 0.9f, 0.3f, 1f));
             }
             catch { }
         }

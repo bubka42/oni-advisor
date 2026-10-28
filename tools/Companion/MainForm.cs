@@ -816,7 +816,7 @@ public sealed class MainForm : Form
             case "guide":
                 {
                     string name = (string?)req?["name"] ?? (string?)req?["prefab"] ?? "building";
-                    sb.AppendLine($"GUIDED PLANNING: the player is holding a {name} (prefab {(string?)req?["prefab"]}, rotation {(string?)req?["rotation"]}) in the build tool at ({(int?)req?["x"]}, {(int?)req?["y"]}) and pressed Ctrl+Shift+G: lay out everything it needs around that spot (see CLAUDE.md, \"Guided planning\"). " +
+                    sb.AppendLine($"GUIDED PLANNING: the player is holding a {name} (prefab {(string?)req?["prefab"]}, rotation {(string?)req?["rotation"]}) in the build tool at ({(int?)req?["x"]}, {(int?)req?["y"]}) and asked for guided planning: lay out everything it needs around that spot (see CLAUDE.md, \"Guided planning\"). " +
                         ((bool?)req?["another"] == true ? "They asked for ANOTHER layout: make it genuinely different from your previous one (other placement or approach). " : "") +
                         "Look at the area first (MapQuery region/buildings/pipes/ports/rates around it). Write the layout as the project with id \"guide\" in live/projects/projects.json (replace any earlier \"guide\" project, keep the others), with the held building as an item at (or within a tile or two of) that spot. Check live/projects/projects-status.json and fix anything blocked. Then reply in one or two sentences: what the layout does, and anything the player must decide or watch out for.");
                     break;

@@ -36,7 +36,7 @@ namespace OniAdvisor
         static System.DateTime fileTime, doneTime;
         static bool unseen;
 
-        static bool open, pausedByUs;
+        static bool open, pausedByUs, paused;
         static int current;
         static float advanceAt = -1f;
 
@@ -68,7 +68,7 @@ namespace OniAdvisor
                         if (!first || (System.DateTime.UtcNow - t).TotalMinutes < 2)
                         {
                             unseen = true;
-                            AdvisorHud.Show($"Briefing ready ({steps.Count} steps): click ADVISOR below, or Ctrl+Shift+B", 6f);
+                            AdvisorHud.Show($"Briefing ready ({steps.Count} steps): click ADVISOR below, or {Hotkeys.Describe("briefing")}", 6f);
                         }
                         if (open) { current = 0; Rebuild(); PlayStep(); }
                     }
@@ -81,7 +81,7 @@ namespace OniAdvisor
                         doneTime = t;
                         var o = JObject.Parse(File.ReadAllText(DoneFile));
                         if ((string)o["id"] == id && (int?)o["step"] == current && current < steps.Count - 1)
-                            advanceAt = Time.unscaledTime + 0.8f; // short breath between steps
+                            if (!paused) advanceAt = Time.unscaledTime + 0.8f; // short breath between steps
                     }
                 }
             }
@@ -160,6 +160,7 @@ namespace OniAdvisor
 
         static void Open()
         {
+            paused = false;
             if (AdvisorPanel.IsOpen) AdvisorPanel.Close();
             open = true;
             unseen = false;
@@ -193,8 +194,22 @@ namespace OniAdvisor
             }
         }
 
+        /// <summary>Space: stop the voice and the auto-advance; again: play the step from its start.</summary>
+        public static void TogglePause()
+        {
+            if (!open) return;
+            paused = !paused;
+            if (paused) { advanceAt = -1f; WritePlayback(-1); Rebuild(); } // -1 stops the voice
+            else { Rebuild(); PlayStep(); }
+        }
+
+        public static void Next() { if (open && current < steps.Count - 1) Go(current + 1); }
+
+        public static void Back() { if (open && current > 0) Go(current - 1); }
+
         static void Go(int step)
         {
+            paused = false;
             if (steps.Count == 0) return;
             current = Mathf.Clamp(step, 0, steps.Count - 1);
             advanceAt = -1f;
@@ -337,7 +352,7 @@ namespace OniAdvisor
                 if (!string.IsNullOrEmpty(s.Text) && active) Add(row, s.Text, 13, color: OniStyle.TextMuted);
             }
 
-            footerText.text = steps.Count > 0 ? $"Step {current + 1} of {steps.Count} · game paused · Ctrl+Shift+B closes" : "";
+            footerText.text = steps.Count > 0 ? (paused ? $"Step {current + 1} of {steps.Count} · PAUSED · Space continues" : $"Step {current + 1} of {steps.Count} · Space pause · Left/Right step · Esc close") : "";
         }
 
         static void Add(RectTransform parent, string text, float size, bool header = false, Color? color = null)

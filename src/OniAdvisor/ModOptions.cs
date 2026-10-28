@@ -98,7 +98,7 @@ namespace OniAdvisor
 
             var box = OniStyle.Rect("box", shade);
             box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(1120, 830);
+            box.sizeDelta = new Vector2(1120, 880);
             OniStyle.Fill(box, OniStyle.Panel, true);
 
             var header = OniStyle.Rect("header", box);
@@ -140,7 +140,8 @@ namespace OniAdvisor
             show.gameObject.AddComponent<LayoutElement>().preferredHeight = 30;
             var sh = show.gameObject.AddComponent<HorizontalLayoutGroup>();
             sh.childControlWidth = sh.childControlHeight = true; sh.childForceExpandWidth = false;
-            OniStyle.MakeButton(show, "SHOW COMPANION WINDOW", () => Request("companion", null), 260);
+            OniStyle.MakeButton(show, "EDIT HOTKEYS", OpenHotkeyEditor, 150);
+            OniStyle.MakeButton(show, "SHOW COMPANION WINDOW", () => Request("companion", null), 220);
 
             CustomInstructions(box);
 
@@ -185,6 +186,7 @@ namespace OniAdvisor
             new Choice("MarkStyle", "Advisor's marks", ("sketch", "Hand-drawn"), ("clean", "Clean shapes")),
             new Choice("Spotlight", "Briefing spotlight", (true, "On (grey out the rest)"), (false, "Off")),
             new Choice("ShowThinking", "Advisor's thinking", ("captions", "Captions while you wait"), ("camera", "Captions + camera follows"), ("off", "Off")),
+            new Choice("HotkeyPreset", "Hotkeys", ("standard", "Standard (Ctrl+Shift+key)"), ("simple", "Simple (single keys)"), ("custom", "Custom (EDIT HOTKEYS)")),
         };
 
         static void ChoiceRow(Transform parent, Choice c)
@@ -263,6 +265,128 @@ namespace OniAdvisor
                 ib.onClick.AddListener(() => { CloseDropdown(); onPick(pick); });
             }
             popup.SetAsLastSibling();
+        }
+
+        // ------------------------------------------------------------------ hotkey editor
+
+        static GameObject hotkeyEditor;
+        static bool capturing;
+        static string capturingAction;
+        static JObject editedKeys;
+        static readonly System.Collections.Generic.Dictionary<string, TextMeshProUGUI> keyLabels = new System.Collections.Generic.Dictionary<string, TextMeshProUGUI>();
+
+        /// <summary>Lists the advisor's actions with their keys; click one, press the new key. Editing makes the preset "custom".</summary>
+        static void OpenHotkeyEditor()
+        {
+            CloseHotkeyEditor();
+            if (dialog == null) return;
+            editedKeys = Hotkeys.CurrentAsJson();
+            keyLabels.Clear();
+
+            var shade = OniStyle.Rect("hotkeys-shade", dialog.transform);
+            OniStyle.Stretch(shade);
+            OniStyle.Fill(shade, new Color(0, 0, 0, 0.4f), true);
+            hotkeyEditor = shade.gameObject;
+            shade.gameObject.AddComponent<KeyCapture>();
+
+            var box = OniStyle.Rect("hotkeys", shade);
+            box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
+            box.sizeDelta = new Vector2(560, 0);
+            OniStyle.Fill(box, OniStyle.Panel, true);
+            var v = box.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.padding = new RectOffset(0, 0, 0, 14); v.spacing = 4;
+            v.childControlWidth = v.childControlHeight = true; v.childForceExpandHeight = false;
+            box.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var header = OniStyle.Rect("header", box);
+            header.gameObject.AddComponent<LayoutElement>().preferredHeight = 38;
+            OniStyle.Fill(header, OniStyle.Header, false);
+            var ht = OniStyle.Rect("text", header);
+            OniStyle.Stretch(ht, 14, 0);
+            OniStyle.Label(ht, "ADVISOR HOTKEYS", 19, header: true, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+
+            var list = OniStyle.Rect("list", box);
+            var lv = list.gameObject.AddComponent<VerticalLayoutGroup>();
+            lv.padding = new RectOffset(18, 18, 8, 4); lv.spacing = 4;
+            lv.childControlWidth = lv.childControlHeight = true; lv.childForceExpandHeight = false;
+            foreach (var (id, label) in Hotkeys.Actions)
+            {
+                var row = OniStyle.Rect("key-" + id, list);
+                row.gameObject.AddComponent<LayoutElement>().preferredHeight = 28;
+                var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+                h.spacing = 8; h.childControlWidth = h.childControlHeight = true; h.childForceExpandWidth = false;
+                var lr = OniStyle.Rect("label", row);
+                lr.gameObject.AddComponent<LayoutElement>().preferredWidth = 260;
+                OniStyle.Label(lr, label, 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+                var br = OniStyle.Rect("key", row);
+                br.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
+                var img = OniStyle.Fill(br, Color.white, true);
+                var b = br.gameObject.AddComponent<Button>();
+                b.targetGraphic = img;
+                var colors = b.colors; colors.normalColor = colors.selectedColor = OniStyle.Row; colors.highlightedColor = OniStyle.RowActive; b.colors = colors;
+                var tr = OniStyle.Rect("text", br);
+                OniStyle.Stretch(tr, 8, 0);
+                keyLabels[id] = OniStyle.Label(tr, (string)editedKeys[id], 15, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+                string action = id;
+                b.onClick.AddListener(() => StartCapture(action));
+            }
+
+            var hint = OniStyle.Rect("hint", box);
+            hint.gameObject.AddComponent<LayoutElement>().preferredHeight = 36;
+            var hintText = OniStyle.Label(hint, "Click a key, then press the new one (with Ctrl/Shift/Alt if you like). Backspace: no key. Esc: cancel.", 13, color: OniStyle.TextMuted, align: TextAlignmentOptions.Center);
+            hintText.margin = new Vector4(18, 0, 18, 0);
+            var buttons = OniStyle.Rect("buttons", box);
+            var bh = buttons.gameObject.AddComponent<HorizontalLayoutGroup>();
+            bh.spacing = 8; bh.childAlignment = TextAnchor.MiddleCenter; bh.childControlWidth = bh.childControlHeight = true; bh.childForceExpandWidth = false;
+            OniStyle.MakeButton(buttons, "USE STANDARD", () => UsePreset("standard"), 150);
+            OniStyle.MakeButton(buttons, "USE SIMPLE", () => UsePreset("simple"), 130);
+            OniStyle.MakeButton(buttons, "DONE", CloseHotkeyEditor, 100);
+        }
+
+        static void StartCapture(string action)
+        {
+            capturing = true;
+            capturingAction = action;
+            if (keyLabels.TryGetValue(action, out var l)) l.text = "press a key…";
+        }
+
+        /// <summary>Called by KeyCapture every frame while the editor is open.</summary>
+        static void CaptureTick()
+        {
+            if (!capturing) return;
+            string key = null;
+            if (Input.GetKeyDown(KeyCode.Escape)) { capturing = false; keyLabels[capturingAction].text = (string)editedKeys[capturingAction]; return; }
+            if (Input.GetKeyDown(KeyCode.Backspace) || Input.GetKeyDown(KeyCode.Delete)) key = "none";
+            else key = Hotkeys.Capture();
+            if (key == null) return;
+            capturing = false;
+            editedKeys[capturingAction] = key;
+            keyLabels[capturingAction].text = key;
+            WriteSetting("Hotkeys", editedKeys);
+            WriteSetting("HotkeyPreset", "custom");
+            Request("settings", null);
+        }
+
+        static void UsePreset(string preset)
+        {
+            WriteSetting("HotkeyPreset", preset);
+            Request("settings", null);
+            CloseHotkeyEditor();
+            AdvisorHud.Show($"Advisor hotkeys: {preset}", 2.5f);
+            if (dialog != null) Open(dialog.transform.parent); // redraw, so the dropdown shows the preset
+        }
+
+        static void CloseHotkeyEditor()
+        {
+            capturing = false;
+            if (hotkeyEditor != null) UnityEngine.Object.Destroy(hotkeyEditor);
+            hotkeyEditor = null;
+        }
+
+        /// <summary>Feeds key presses to the hotkey editor (the dialog itself has no Update).</summary>
+        sealed class KeyCapture : MonoBehaviour
+        {
+            void Update() => CaptureTick();
         }
 
         static void CloseDropdown()
@@ -348,6 +472,7 @@ namespace OniAdvisor
         static void Close()
         {
             CloseDropdown();
+            CloseHotkeyEditor();
             SaveCustom();
             if (dialog != null) UnityEngine.Object.Destroy(dialog);
             dialog = null;
@@ -369,7 +494,7 @@ namespace OniAdvisor
         static string CustomFile => Path.Combine(Path.GetDirectoryName(Paths.LiveDir), "custom-prompt.md");
 
         /// <summary>While the player types here, the game's shortcuts (and Esc closing the Mods screen) stay quiet.</summary>
-        public static bool Typing => dialog != null && customField != null && customField.isFocused;
+        public static bool Typing => dialog != null && (capturing || (customField != null && customField.isFocused));
 
         static void CustomInstructions(RectTransform box)
         {

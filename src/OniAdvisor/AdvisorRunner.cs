@@ -109,37 +109,46 @@ namespace OniAdvisor
                 Guard("rules", Commands.RunRules);
             }
 
-            Hotkeys();
+            HandleHotkeys();
             Guard("planning fallback", PlanMode.FallbackUpdate);
             WatchPod();
         }
 
         bool talking;
 
-        void Hotkeys()
+        void HandleHotkeys()
         {
-            // Push-to-talk: recording runs while V is held (Ctrl/Shift may be let go first).
-            if (talking && !Input.GetKey(KeyCode.V))
+            // Push-to-talk: recording runs while the talk key is held (its modifiers may be let go first).
+            if (talking && !Hotkeys.Held("talk"))
             {
                 talking = false;
                 WriteRequest("voice-stop", null);
             }
 
-            if (AdvisorPanel.Typing) return; // keys go to the chat box
-            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-            if (!ctrl || !shift) return;
-            if (Input.GetKeyDown(KeyCode.A)) { AdvisorHud.Show("Sent to the advisor: snapshot, screenshot and maps"); Export("hotkey", screenshot: true, request: true); }
-            if (Input.GetKeyDown(KeyCode.V) && !talking) { talking = true; WriteRequest("voice-start", null); }
-            if (Input.GetKeyDown(KeyCode.C)) WriteRequest("companion", null);
-            if (Input.GetKeyDown(KeyCode.B)) Guard("briefing", Briefing.Toggle);
-            if (Input.GetKeyDown(KeyCode.T)) Guard("advisor panel", AdvisorPanel.Toggle);
-            if (Input.GetKeyDown(KeyCode.Q)) WriteRequest("speak-toggle", null);
-            if (Input.GetKeyDown(KeyCode.P)) Guard("planning toggle", PlanMode.Toggle);
-            if (Input.GetKeyDown(KeyCode.M)) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
-            if (Input.GetKeyDown(KeyCode.N)) Guard("project focus", () => AdvisorHud.Show("Projects: " + ProjectStore.CycleFocus(), 2.5f));
-            if (Input.GetKeyDown(KeyCode.G)) Guard("guided planning", () => GuidedPlan.Ask());
-            if (Input.GetKeyDown(KeyCode.X) && PlanMode.Active) Guard("clear marks", () => { PlanMarks.ClearPlayer(); AdvisorHud.Show("Your marks cleared", 2f); });
+            // Briefings: Space pauses / continues, arrows step, Esc closes (the game doesn't see these keys).
+            if (Briefing.IsOpen)
+            {
+                if (Input.GetKeyDown(KeyCode.Space)) Guard("briefing pause", Briefing.TogglePause);
+                if (Input.GetKeyDown(KeyCode.RightArrow)) Guard("briefing next", Briefing.Next);
+                if (Input.GetKeyDown(KeyCode.LeftArrow)) Guard("briefing back", Briefing.Back);
+                if (Input.GetKeyDown(KeyCode.Escape)) Guard("briefing close", Briefing.Close);
+            }
+            // Esc closes the advisor panel (the first Esc only leaves the typing box: see AdvisorPanel).
+            else if (AdvisorPanel.IsOpen && !AdvisorPanel.Typing && Input.GetKeyDown(KeyCode.Escape) && !AdvisorPanel.JustLeftTyping)
+                Guard("advisor panel", AdvisorPanel.Close);
+
+            if (AdvisorPanel.Typing || ModOptions.Typing) return; // keys go to the text box
+            if (Hotkeys.Down("look")) { AdvisorHud.Show("Sent to the advisor: snapshot, screenshot and maps"); Export("hotkey", screenshot: true, request: true); }
+            if (Hotkeys.Down("talk") && !talking) { talking = true; WriteRequest("voice-start", null); }
+            if (Hotkeys.Down("companion")) WriteRequest("companion", null);
+            if (Hotkeys.Down("briefing")) Guard("briefing", Briefing.Toggle);
+            if (Hotkeys.Down("panel")) Guard("advisor panel", AdvisorPanel.Toggle);
+            if (Hotkeys.Down("voice")) WriteRequest("speak-toggle", null);
+            if (Hotkeys.Down("plan")) Guard("planning toggle", PlanMode.Toggle);
+            if (Hotkeys.Down("overlay")) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
+            if (Hotkeys.Down("projects")) Guard("project focus", () => AdvisorHud.Show("Projects: " + ProjectStore.CycleFocus(), 2.5f));
+            if (Hotkeys.Down("guide")) Guard("guided planning", () => GuidedPlan.Ask());
+            if (Hotkeys.Down("clearMarks") && PlanMode.Active) Guard("clear marks", () => { PlanMarks.ClearPlayer(); AdvisorHud.Show("Your marks cleared", 2f); });
         }
 
         static void Guard(string what, System.Action a)

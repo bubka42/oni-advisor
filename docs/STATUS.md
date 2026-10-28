@@ -89,6 +89,12 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   project centred on the cursor, tinted per cell, click places a copy, right-click/Esc leaves. PLAN tab
   lists projects with SHOW / STAMP / PLACE AS PLANNED. `placeProject` (delegation) uses the same code.
   Not yet: rotation/mirroring of a stamp, game-style ghost sprites, a blueprint library.
+- **Keyboard** (`Hotkeys.cs`, `AdvisorKeys` in AdvisorPanel.cs): Esc closes the advisor panel (the first Esc only
+  leaves the typing box) and briefings; briefings: Space pause/continue (stops the voice, replays the step),
+  Left/Right step. Hotkey presets in the options: standard (Ctrl+Shift+key), simple (single keys: T panel,
+  B briefing, V talk, L look, P plan, G guide, M overlay, N projects, Q voice, X clear marks), custom (EDIT
+  HOTKEYS: click an action, press a key). Our keys are swallowed before the game sees them (KScreenManager
+  prefix), except while one of the game's own text boxes has focus. Hints show the bindings in force.
 - **HUD rework** (`AdvisorHud.cs`, `AdvisorCard.cs`): the status banner is gone; the ADVISOR button (bottom centre)
   shows the state ("ADVISOR · thinking…", glows while busy) and opens a waiting briefing or the panel. Tips
   and answers to questions not typed in the panel open a card in the briefing caption's style (title bar by

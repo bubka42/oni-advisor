@@ -33,6 +33,8 @@ public sealed class Settings
     public string MarkStyle { get; set; } = "sketch"; // the advisor's marks: sketch (hand-drawn) | clean (read by the mod)
     public bool Spotlight { get; set; } = true;       // briefing steps grey out everything but their area (read by the mod)
     public string ShowThinking { get; set; } = "captions"; // off | captions | camera: show where the advisor is looking while the player waits
+    public string HotkeyPreset { get; set; } = "standard"; // standard | simple | custom (read by the mod)
+    public Dictionary<string, string>? Hotkeys { get; set; } // custom bindings {action: "Ctrl+Shift+T"} (read by the mod)
     public string? CustomPromptSent { get; set; }     // the custom instructions (custom-prompt.md) the current conversation has seen
     public int TimeoutSeconds { get; set; } = 300;
 
