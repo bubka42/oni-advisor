@@ -126,6 +126,7 @@ public sealed class AdvisorSession : IDisposable
                         }
                         break;
                     case "assistant":
+                        CountUsage(j["message"]);
                         foreach (var c in j["message"]?["content"]?.AsArray() ?? new JsonArray())
                             if ((string?)c?["type"] == "tool_use")
                             {
@@ -190,8 +191,47 @@ public sealed class AdvisorSession : IDisposable
         }
     }
 
+    // ------------------------------------------------------------------ usage
+
+    /// <summary>Tokens of one advisor turn (all its model calls), and how big the conversation is now.</summary>
+    public sealed class Usage
+    {
+        public int Calls;
+        public long Input, CacheWrite, CacheRead, Output;
+        /// <summary>The last call's whole prompt: the conversation's size, which every later call re-reads.</summary>
+        public long Context;
+        public long PromptTotal => Input + CacheWrite + CacheRead;
+    }
+
+    readonly HashSet<string> countedMessages = new();
+    Usage turnUsage = new();
+
+    /// <summary>The usage of the last finished turn.</summary>
+    public Usage LastTurn { get; private set; } = new();
+
+    /// <summary>The conversation's size after the last call (0 until the first call).</summary>
+    public long ContextTokens { get; private set; }
+
+    /// <summary>Each model call appears in several "assistant" events (one per content block): count each message once.</summary>
+    void CountUsage(JsonNode? message)
+    {
+        var u = message?["usage"];
+        string id = (string?)message?["id"] ?? "";
+        if (u == null || id.Length == 0 || !countedMessages.Add(id)) return;
+        long In(string k) => (long?)u[k] ?? 0;
+        turnUsage.Calls++;
+        turnUsage.Input += In("input_tokens");
+        turnUsage.CacheWrite += In("cache_creation_input_tokens");
+        turnUsage.CacheRead += In("cache_read_input_tokens");
+        turnUsage.Output += In("output_tokens");
+        turnUsage.Context = In("input_tokens") + In("cache_creation_input_tokens") + In("cache_read_input_tokens");
+        ContextTokens = turnUsage.Context;
+    }
+
     void Complete(string? text, string? error = null)
     {
+        LastTurn = turnUsage;
+        turnUsage = new Usage();
         TaskCompletionSource<string>? tcs;
         lock (gate) { tcs = pending; pending = null; }
         if (tcs == null) return;

@@ -113,17 +113,6 @@ namespace OniAdvisor
 
         // ------------------------------------------------------------------ hand-drawn strokes (Sketch)
 
-        static Material lineMaterial;
-        static Material LineMaterial
-        {
-            get
-            {
-                // Sprites/Default ships with every Unity build (SpriteRenderer uses it).
-                if (lineMaterial == null) lineMaterial = new Material(Shader.Find("Sprites/Default"));
-                return lineMaterial;
-            }
-        }
-
         float revealCursor = -1f;
 
         /// <summary>Strokes drawn from now on reveal one after another, as if sketched (call once per batch of marks).</summary>
@@ -132,41 +121,54 @@ namespace OniAdvisor
         /// <summary>No reveal: strokes appear at once (e.g. redraws of marks already shown).</summary>
         public void NoReveal() => revealCursor = -1f;
 
-        /// <summary>A pen stroke along a polyline: tapered ends, slightly uneven pressure, drawn on if a reveal is running.</summary>
+        /// <summary>
+        /// A pen stroke along a polyline: one thin sprite per segment (the same plain sprites as every other mark,
+        /// which render reliably; a LineRenderer turned out invisible in the game), tapered at both ends and a
+        /// little uneven in the middle, drawn on segment by segment if a reveal is running.
+        /// </summary>
         public void Stroke(List<Vector2> points, Color c, float width = 0.2f)
         {
             if (points == null || points.Count < 2) return;
             var go = New("stroke");
+            go.transform.position = Vector3.zero;
             float z = Z - 0.025f;
-            var pts = new Vector3[points.Count];
+            int n = points.Count - 1;
             float len = 0f;
-            for (int i = 0; i < points.Count; i++)
+            var segments = new GameObject[n];
+            for (int i = 0; i < n; i++)
             {
-                pts[i] = new Vector3(points[i].x, points[i].y, z);
-                if (i > 0) len += Vector2.Distance(points[i - 1], points[i]);
+                Vector2 a = points[i], b = points[i + 1];
+                float d = Vector2.Distance(a, b);
+                len += d;
+                float t = (i + 0.5f) / n;
+                float w = width * Taper(t);
+                var seg = new GameObject("seg");
+                seg.transform.SetParent(go.transform, false);
+                seg.transform.position = new Vector3((a.x + b.x) / 2f, (a.y + b.y) / 2f, z);
+                seg.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg);
+                seg.transform.localScale = new Vector3(d + w * 0.9f, w, 1f); // overlap, so joints close
+                var sr = seg.AddComponent<SpriteRenderer>();
+                sr.sprite = White;
+                sr.color = c;
+                sr.sortingOrder = SortingOrder + 2;
+                segments[i] = seg;
             }
-            var line = go.AddComponent<LineRenderer>();
-            line.useWorldSpace = true;
-            line.sharedMaterial = LineMaterial;
-            line.startColor = line.endColor = c;
-            line.numCapVertices = 4;
-            line.numCornerVertices = 2;
-            line.sortingOrder = SortingOrder + 2;
-            line.widthMultiplier = width;
-            line.widthCurve = new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.12f, 1f), new Keyframe(0.6f, 0.85f), new Keyframe(0.9f, 1f), new Keyframe(1f, 0.45f));
-            line.positionCount = pts.Length;
-            line.SetPositions(pts);
             if (revealCursor >= 0f)
             {
                 float duration = Mathf.Clamp(len * 0.035f, 0.12f, 0.6f);
+                foreach (var seg in segments) seg.SetActive(false);
                 var reveal = go.AddComponent<StrokeReveal>();
-                reveal.Points = pts;
+                reveal.Segments = segments;
                 reveal.Start = revealCursor;
                 reveal.Duration = duration;
-                line.positionCount = 0;
                 revealCursor += duration * 0.85f;
             }
         }
+
+        /// <summary>Pen pressure along a stroke (0..1): thin at both ends, a little lighter in the middle.</summary>
+        static float Taper(float t) =>
+            t < 0.12f ? Mathf.Lerp(0.35f, 1f, t / 0.12f) : t < 0.6f ? Mathf.Lerp(1f, 0.85f, (t - 0.12f) / 0.48f)
+            : t < 0.9f ? Mathf.Lerp(0.85f, 1f, (t - 0.6f) / 0.3f) : Mathf.Lerp(1f, 0.45f, (t - 0.9f) / 0.1f);
 
         /// <summary>Small square centred on a tile.</summary>
         public void Dot(int x, int y, Color c, float size = 0.55f) => Quad(x + 0.5f, y + 0.5f, size, size, c, 2);
@@ -235,28 +237,22 @@ namespace OniAdvisor
         }
     }
 
-    /// <summary>Reveals a stroke over a short time, as if it were being drawn (unscaled time: briefings pause the game).</summary>
+
+    /// <summary>Reveals a stroke over a short time, segment by segment, as if it were being drawn (unscaled time: briefings pause the game).</summary>
     internal sealed class StrokeReveal : MonoBehaviour
     {
-        public Vector3[] Points;
+        public GameObject[] Segments;
         public float Start, Duration;
-        LineRenderer line;
-
-        void Awake() => line = GetComponent<LineRenderer>();
+        int shown;
 
         void Update()
         {
-            if (line == null || Points == null) { enabled = false; return; }
+            if (Segments == null) { enabled = false; return; }
             float t = Duration <= 0 ? 1f : Mathf.Clamp01((Time.unscaledTime - Start) / Duration);
             t = 1f - (1f - t) * (1f - t); // ease out: quick start, gentle finish
-            float exact = t * (Points.Length - 1);
-            int whole = Mathf.FloorToInt(exact);
-            int count = Mathf.Min(Points.Length, whole + 2);
-            line.positionCount = Mathf.Max(count, 0);
-            for (int i = 0; i < count && i <= whole; i++) line.SetPosition(i, Points[i]);
-            if (whole + 1 < Points.Length && count > whole + 1)
-                line.SetPosition(whole + 1, Vector3.Lerp(Points[whole], Points[whole + 1], exact - whole));
-            if (t >= 1f) { line.positionCount = Points.Length; line.SetPositions(Points); enabled = false; }
+            int target = Mathf.CeilToInt(t * Segments.Length);
+            while (shown < target && shown < Segments.Length) { if (Segments[shown] != null) Segments[shown].SetActive(true); shown++; }
+            if (shown >= Segments.Length) enabled = false;
         }
     }
 }

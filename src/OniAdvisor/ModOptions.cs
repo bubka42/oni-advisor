@@ -98,7 +98,7 @@ namespace OniAdvisor
 
             var box = OniStyle.Rect("box", shade);
             box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(1120, 880);
+            box.sizeDelta = new Vector2(1120, 920);
             OniStyle.Fill(box, OniStyle.Panel, true);
 
             var header = OniStyle.Rect("header", box);
@@ -177,7 +177,6 @@ namespace OniAdvisor
             new Choice("AdviceLevel", "Advice level", ("standard", "Standard"), ("light", "Light (the important bits)"), ("minimal", "Minimal (critical only)"), ("teacher", "Teacher (explains the why)")),
             new Choice("Model", "Model", ("sonnet", "Sonnet (answers in ~5-15 s)"), ("opus", "Opus (deeper, slower)")),
             new Choice("Effort", "Thinking", ("medium", "Medium"), ("high", "High"), ("low", "Low")),
-            new Choice("Proactive", "Speaks up unasked", ("freely", "Freely"), ("serious", "Only when serious"), ("never", "Never")),
             new Choice("PlanReviewMinutes", "Long-term plan review", (12, "Every 12 min when calm"), (20, "Every 20 min"), (30, "Every 30 min"), (6, "Every 6 min")),
             new Choice("Speak", "Read replies aloud", (false, "Off"), (true, "On")),
             new Choice("SpeakBriefings", "Read briefings aloud", (true, "On"), (false, "Off")),
@@ -185,6 +184,7 @@ namespace OniAdvisor
             new Choice("AutoStart", "Start with the game", (true, "On"), (false, "Off (start it by hand)")),
             new Choice("MarkStyle", "Advisor's marks", ("sketch", "Hand-drawn"), ("clean", "Clean shapes")),
             new Choice("Spotlight", "Briefing spotlight", (true, "On (grey out the rest)"), (false, "Off")),
+            new Choice("Eagerness", "Speaks up unasked", ("normal", "Normal (new events, every 5 min at most)"), ("crisis", "Crisis (new events, every minute)"), ("longterm", "Long-term (emergencies + plan)"), ("asked", "When asked (+ emergencies)")),
             new Choice("ShowThinking", "Advisor's thinking", ("captions", "Captions while you wait"), ("camera", "Captions + camera follows"), ("off", "Off")),
             new Choice("HotkeyPreset", "Hotkeys", ("standard", "Standard (Ctrl+Shift+key)"), ("simple", "Simple (single keys)"), ("custom", "Custom (EDIT HOTKEYS)")),
         };
@@ -456,7 +456,7 @@ namespace OniAdvisor
         }
 
         /// <summary>Tells a running companion (GameClock-free, unlike AdvisorRunner.WriteRequest: this works on the main menu).</summary>
-        static void Request(string trigger, JObject extra)
+        internal static void Request(string trigger, JObject extra)
         {
             try
             {
@@ -579,7 +579,7 @@ namespace OniAdvisor
         }
 
         /// <summary>Written here (not only by the companion) so a choice sticks when the companion isn't running.</summary>
-        static void WriteSetting(string key, JToken value)
+        internal static void WriteSetting(string key, JToken value)
         {
             try
             {

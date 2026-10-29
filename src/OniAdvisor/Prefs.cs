@@ -46,5 +46,8 @@ namespace OniAdvisor
 
         /// <summary>The custom bindings {action: "Ctrl+Shift+T"}, used with the custom preset.</summary>
         public static JObject CustomHotkeys => Json["Hotkeys"] as JObject;
+
+        /// <summary>How eagerly the advisor speaks up unasked: crisis, normal, longterm or asked (the in-game control).</summary>
+        public static string Eagerness => (string)Json["Eagerness"] ?? "normal";
     }
 }

@@ -23,6 +23,7 @@ public sealed class MainForm : Form
     readonly GameWatch watch;
     ChatLog chat;         // recreated when the colony changes (its files are swapped by the mod)
     readonly ThinkingShow show;
+    readonly UsageLog usage;
     Quests quests;
     ConversationLog convo;
 
@@ -50,6 +51,7 @@ public sealed class MainForm : Form
         watch = new GameWatch(liveDir);
         chat = new ChatLog(liveDir);
         show = new ThinkingShow(liveDir);
+        usage = new UsageLog(advisorDir, liveDir);
         quests = new Quests(liveDir);
         quests.News(); // remember where things stand, so only later changes are news
         HookAdvisorEvents();
@@ -568,6 +570,7 @@ public sealed class MainForm : Form
         if (!unasked && settings.ShowThinking != "off") show.Begin(); // the player is waiting: let them watch it look
         chat.CurrentThread = thread;
         var reply = await advisor.AskAsync(prompt, cts.Token, shot != null && File.Exists(shot) ? shot : null);
+        LogUsage(trigger);
         if (reply.Ok && File.Exists(draftFile) && File.GetLastWriteTimeUtc(draftFile) > draftBefore)
             await VerifyBriefing(draftFile, briefingFile, cycle);
         show.End();
@@ -631,6 +634,7 @@ public sealed class MainForm : Form
         string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : trigger);
         if (!(unasked && level == null)) WriteStatus("replied", spoken, answer, level, entry, via);
         else WriteStatus("idle", null);
+        await HandOverIfLong();
     }
 
     /// <summary>What to read aloud: a short answer whole; a long one's first two sentences and a pointer to the panel.</summary>
@@ -647,30 +651,53 @@ public sealed class MainForm : Form
     /// Every ~10 s: follow the game; let the advisor speak up when something happened, and when things are calm
     /// for a while, have it look ahead and advance the long-term plan.
     /// </summary>
+    /// <summary>
+    /// Every ~10 s: follow the game; let the advisor speak up when something new happened, and when things are
+    /// calm, have it look ahead and advance the long-term plan. How eagerly is the player's choice (in-game):
+    ///   crisis    new events may prompt a comment every minute (serious ones sooner); no plan reviews
+    ///   normal    new events at most every ProactiveMinSeconds (at least 5 minutes); plan reviews when calm
+    ///   longterm  only serious new events; plan reviews (at least every 20 minutes) carry the long-term plan
+    ///   asked     only serious new events; otherwise it speaks when asked
+    /// Repeats of recent events never prompt a comment (GameWatch.HasNews).
+    /// </summary>
     void FollowGame()
     {
         CheckColony();
+        _ = HandOverIfLong();
+        string eagerness = settings.Eagerness ?? "normal";
+        watch.RepeatWindow = TimeSpan.FromMinutes(eagerness == "crisis" ? 5 : 20);
         bool fresh = watch.Poll();
         if (settings.Proactive == "never" || advisor.Busy) return;
         // The advice level narrows (or widens) what the advisor may bring up unasked.
         string level = settings.AdviceLevel;
-        bool seriousOnly = settings.Proactive == "serious" || level == "minimal";
-        int minGapSeconds = level == "teacher" ? Math.Min(settings.ProactiveMinSeconds, 90) : settings.ProactiveMinSeconds;
-        double reviewMinutes = level == "light" ? settings.PlanReviewMinutes * 2 : settings.PlanReviewMinutes;
+        bool seriousOnly = settings.Proactive == "serious" || level == "minimal" || eagerness is "longterm" or "asked";
+        int minGapSeconds = eagerness switch
+        {
+            "crisis" => 60,
+            "normal" => Math.Max(300, level == "teacher" ? Math.Min(settings.ProactiveMinSeconds, 90) : settings.ProactiveMinSeconds),
+            _ => Math.Max(300, settings.ProactiveMinSeconds),
+        };
+        double reviewMinutes = eagerness switch
+        {
+            "crisis" or "asked" => double.MaxValue,
+            "longterm" => Math.Max(20, settings.PlanReviewMinutes),
+            _ => level == "light" ? settings.PlanReviewMinutes * 2 : settings.PlanReviewMinutes,
+        };
         if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(Path.Combine(liveDir, "view.json"))).TotalSeconds > 30) return; // game not running
         var now = DateTime.UtcNow;
         double sincePlayer = (now - lastPlayerUtc).TotalSeconds, sinceTip = (now - lastProactiveUtc).TotalSeconds;
 
-        if (fresh && watch.HasEvents)
+        if (fresh && watch.HasNews)
         {
             // Something serious (an alert, suffocation, starving …) may interrupt sooner than ordinary tips.
-            int minGap = watch.HasSerious ? Math.Min(30, minGapSeconds) : minGapSeconds;
-            bool ok = sincePlayer >= (watch.HasSerious ? 10 : 45) && sinceTip >= minGap && (!seriousOnly || watch.HasSerious);
+            bool serious = watch.HasSeriousNews;
+            int minGap = serious ? Math.Min(eagerness == "crisis" ? 20 : 30, minGapSeconds) : minGapSeconds;
+            bool ok = sincePlayer >= (serious ? 10 : eagerness == "crisis" ? 20 : 45) && sinceTip >= minGap && (!seriousOnly || serious);
             if (ok) { lastProactiveUtc = now; Enqueue("update", null); return; }
         }
 
         // Calm: nothing serious pending, the player not mid-conversation, no tip for a while. (Minimal: no reviews.)
-        if (level != "minimal" && !watch.HasSerious && sincePlayer > 90 && sinceTip > minGapSeconds
+        if (level != "minimal" && !watch.HasSeriousNews && sincePlayer > 90 && sinceTip > minGapSeconds
             && (now - lastReviewUtc).TotalMinutes >= reviewMinutes)
         {
             lastProactiveUtc = now;
@@ -679,6 +706,40 @@ public sealed class MainForm : Form
     }
 
     string? lastAdviceLevel;
+
+    void LogUsage(string trigger)
+    {
+        var u = advisor.LastTurn;
+        if (u.Calls == 0) return;
+        usage.Add(trigger, colonyName, u);
+        System("· " + UsageLog.Describe(u));
+    }
+
+    /// <summary>
+    /// Keeps the conversation small: every model call re-reads the whole conversation, so a long one makes each
+    /// step expensive even when it all comes from the cache. Past ContextLimit tokens, the advisor writes a
+    /// handover note (live/advisor-memory.md, per colony) and a fresh conversation continues from it plus the
+    /// recent exchanges (ConversationLog).
+    /// </summary>
+    async Task HandOverIfLong()
+    {
+        if (settings.ContextLimit <= 0 || advisor.ContextTokens < settings.ContextLimit || advisor.Busy) return;
+        System($"The conversation has reached {UsageLog.K(advisor.ContextTokens)} tokens: handing over to a fresh one.");
+        WriteStatus("thinking", "tidying up its notes…");
+        const string prompt =
+            "[trigger: handover]\n" +
+            "This conversation has grown long, and every step re-reads all of it, so it will be replaced by a fresh one that starts from a note you write now. " +
+            "Write live/advisor-memory.md (replace it; at most about 1,200 words) for your successor: the colony's situation now (with the key numbers you verified), " +
+            "the decisions taken with the player and why, what you promised or are waiting for, the projects and where each stands, what you were about to do next, " +
+            "and anything about how the player likes to be advised (also keep player.md up to date). Facts and decisions, not a transcript. Then reply exactly: done";
+        await advisor.AskAsync(prompt, cts?.Token ?? CancellationToken.None);
+        LogUsage("handover");
+        advisor.NewConversation();
+        settings.CustomPromptSent = null;
+        settings.Save();
+        WriteStatus("idle", null);
+        System("Fresh conversation; it starts from the handover note.");
+    }
     string colonyName = "";
 
     /// <summary>
@@ -788,6 +849,7 @@ public sealed class MainForm : Form
             "Write the result to live/briefing/briefing.json (same format) and reply with one sentence: what you changed, or " +
             "\"verified, no changes\".";
         var check = await advisor.AskAsync(prompt, cts?.Token ?? CancellationToken.None);
+        LogUsage("verify-briefing");
         bool published = File.Exists(briefingFile) && File.GetLastWriteTimeUtc(briefingFile) > before;
         if (!published)
         {
@@ -834,7 +896,7 @@ public sealed class MainForm : Form
         var sb = new global::System.Text.StringBuilder();
         int cycle = (int?)req?["cycle"] ?? ReadCycle();
         string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : "companion");
-        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}] [advice level: {settings.AdviceLevel}]" + (colonyName.Length > 0 ? $" [colony: {colonyName}]" : "") + (thread != null ? $" [thread: {thread}]" : ""));
+        sb.AppendLine($"[trigger: {trigger}] [via: {via}] [cycle {cycle}] [{DateTime.Now:HH:mm}] [advice level: {settings.AdviceLevel}] [eagerness: {settings.Eagerness}]" + (colonyName.Length > 0 ? $" [colony: {colonyName}]" : "") + (thread != null ? $" [thread: {thread}]" : ""));
         if (settings.AdviceLevel != lastAdviceLevel)
         {
             // Said once when it changes; CLAUDE.md ("Advice level") has what each level means.
@@ -846,6 +908,12 @@ public sealed class MainForm : Form
         {
             string recent = convo.Recent(20, 8000);
             if (recent.Length > 0) sb.AppendLine("(New conversation. What you and the player said earlier, oldest first:)\n" + recent);
+            try
+            {
+                var memory = Path.Combine(liveDir, "advisor-memory.md");
+                if (File.Exists(memory)) sb.AppendLine("(Your handover note from the previous conversation about this colony, live/advisor-memory.md:)\n" + File.ReadAllText(memory).Trim());
+            }
+            catch { }
         }
         string updates = watch.Take() + PinNews() + quests.News();
         if (updates.Length > 0) sb.AppendLine("Since your last message, in the game:\n" + updates);

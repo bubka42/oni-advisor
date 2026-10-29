@@ -36,6 +36,8 @@ public sealed class Settings
     public string HotkeyPreset { get; set; } = "standard"; // standard | simple | custom (read by the mod)
     public Dictionary<string, string>? Hotkeys { get; set; } // custom bindings {action: "Ctrl+Shift+T"} (read by the mod)
     public string? CustomPromptSent { get; set; }     // the custom instructions (custom-prompt.md) the current conversation has seen
+    public int ContextLimit { get; set; } = 150_000;  // conversation size (tokens) at which the advisor hands over to a fresh conversation; 0 = never
+    public string Eagerness { get; set; } = "normal"; // crisis | normal | longterm | asked: how often the advisor speaks up unasked (in-game control)
     public string? CurrentColony { get; set; }        // the colony the current conversation (SessionId) belongs to
     public Dictionary<string, string>? ColonySessions { get; set; } // colony -> its advisor conversation (Claude Code session id)
     public int TimeoutSeconds { get; set; } = 300;

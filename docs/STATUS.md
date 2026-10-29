@@ -95,6 +95,16 @@ game with annotations; briefings forced into 4 steps with too few marks; archive
   and the marks; continuing replays the step.
   Project ghosts build up piece by piece (`ProjectStore.ForceShow(id, count)`): one `projectAt` phrase per item,
   or spread from the first phrase to 90% of the narration.
+- **Usage and conversation size** (`UsageLog.cs`, `AdvisorSession.CountUsage`): per turn: model calls, uncached
+  input, cache writes/reads, output and the conversation size, to advisor/usage.jsonl and live/usage.json.
+  Finding (10-28): cache hits 98.7%, but ~400k tokens per call from one multi-day conversation. Past
+  `ContextLimit` (150k) the advisor writes live/advisor-memory.md (per colony) and a fresh conversation starts
+  from it plus the recent exchanges.
+- **Eagerness** (`Eagerness` crisis|normal|longterm|asked; SPEAKS UP button in the panel's chat bar, options):
+  sets the unasked-comment gap and plan reviews; repeats of recent events (numbers ignored) never trigger a
+  comment (`GameWatch.HasNews`); CLAUDE.md: don't repeat yourself, match the eagerness.
+- **Strokes as sprites**: hand-drawn strokes are now one sprite per segment (the LineRenderer was invisible).
+  Infrastructure proposals must come with a drafted blueprint.
 - **Pause resumes** where it stopped: Space freezes the caption; continuing restarts the voice at the start of
   the sentence being read (`Briefing.Continue`, playback carries the remaining text) instead of the step.
 - **Readability**: advisor panel text x1.3 (panel 640 px wide), projects list 17-18 px (430 px), chips 18 px;

@@ -20,7 +20,7 @@ namespace OniAdvisor
         static readonly string[] Files =
         {
             "colony-plan.md", "quests.json", "quests-state.json", "pins.json", "pins-status.json", "tips.json",
-            "tips-seen.json", "conversation.json", "advisor-log.json", "advisor-status.json", "pod.json",
+            "tips-seen.json", "conversation.json", "advisor-log.json", "advisor-status.json", "pod.json", "advisor-memory.md",
         };
 
         static readonly string[] Dirs = { "chat", "briefing", "projects", "plan", "commands", "history", "screenshots" };

@@ -28,6 +28,8 @@ namespace OniAdvisor
         static RectTransform panel, chatPage, briefPage, planPage, chatList, briefList, planList, streamRow, threadBar;
         static TextMeshProUGUI streamText, threadTitle, planText;
         static RectTransform projectsBox;
+        static TextMeshProUGUI eagerLabel;
+        static string eagerShown;
         static string projectsKey;
         static readonly Dictionary<Page, TextMeshProUGUI> tabLabels = new Dictionary<Page, TextMeshProUGUI>();
         static TMP_InputField input;
@@ -86,6 +88,7 @@ namespace OniAdvisor
             ShowPage(p);
             if (p == Page.Chat) Focus();
             TipBulb.AllSeen(); // the tips are in the chat
+            if (eagerLabel != null) eagerLabel.text = EagernessLabel(Prefs.Eagerness); // it may have changed in the options
         }
 
         public static void Close()
@@ -342,6 +345,32 @@ namespace OniAdvisor
 
         // ------------------------------------------------------------------ plan
 
+        // ------------------------------------------------------------------ eagerness
+
+        static readonly string[] EagernessOrder = { "crisis", "normal", "longterm", "asked" };
+
+        static string EagernessLabel(string e) => "SPEAKS UP: " + (e == "crisis" ? "CRISIS" : e == "longterm" ? "LONG-TERM" : e == "asked" ? "WHEN ASKED" : "NORMAL");
+
+        /// <summary>
+        /// How eagerly the advisor speaks up unasked, changed in the game: crisis (comments on new events every
+        /// minute), normal, long-term (only serious events; works on the plan when calm), when asked (only serious
+        /// events). Saved to companion.json; the companion takes it at once.
+        /// </summary>
+        static void CycleEagerness()
+        {
+            string cur = Prefs.Eagerness;
+            int i = Array.IndexOf(EagernessOrder, cur);
+            string next = EagernessOrder[(i + 1) % EagernessOrder.Length];
+            ModOptions.WriteSetting("Eagerness", next);
+            ModOptions.Request("settings", null);
+            eagerShown = next;
+            if (eagerLabel != null) eagerLabel.text = EagernessLabel(next);
+            AdvisorHud.Show(next == "crisis" ? "Advisor: crisis mode, it comments on new events every minute"
+                : next == "longterm" ? "Advisor: long-term mode, only emergencies unasked; it works on the plan"
+                : next == "asked" ? "Advisor: speaks when asked (and in emergencies)"
+                : "Advisor: normal, a comment on new events at most every 5 minutes", 4f);
+        }
+
         /// <summary>
         /// The advisor's projects above the plan, each with SHOW (its ghost on the map), STAMP (carry it on the
         /// cursor and place copies anywhere) and PLACE (build orders exactly where it was planned).
@@ -465,6 +494,9 @@ namespace OniAdvisor
             OniStyle.MakeButton(bar, "BRIEF ME", () => { AdvisorHud.Show("Asking the advisor for a briefing…", 3f); AdvisorRunner.Instance?.RequestBriefing(); }, 100);
             OniStyle.MakeButton(bar, "STOP", () => AdvisorRunner.WriteRequest("stop", null), 70);
             OniStyle.MakeButton(bar, "NEW CHAT", () => AdvisorRunner.WriteRequest("new-chat", null), 100);
+            var eager = OniStyle.MakeButton(bar, EagernessLabel(Prefs.Eagerness), () => { }, 230);
+            eagerLabel = eager.GetComponentInChildren<TextMeshProUGUI>();
+            eager.onClick.AddListener(CycleEagerness);
 
             // Briefings: list.
             briefList = ScrollList(briefPage, new Vector2(10, 10), new Vector2(-10, -8), out _);

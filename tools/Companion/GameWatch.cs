@@ -14,7 +14,11 @@ public sealed class GameWatch
     readonly string statePath;
     DateTime lastWrite;
     Snap? prev;
-    readonly List<(DateTime utc, int cycle, string text, bool serious)> events = new();
+    readonly List<(DateTime utc, int cycle, string text, bool serious, bool repeat)> events = new();
+    readonly Dictionary<string, DateTime> lastSeen = new(); // event (numbers ignored) -> when it last happened
+
+    /// <summary>An event that happened within this window before is a repeat: told, but no reason to speak up again.</summary>
+    public TimeSpan RepeatWindow = TimeSpan.FromMinutes(20);
     readonly object gate = new();
 
     public GameWatch(string liveDir) => statePath = Path.Combine(liveDir, "state.json");
@@ -66,11 +70,19 @@ public sealed class GameWatch
     public bool HasEvents { get { lock (gate) return events.Count > 0; } }
     public bool HasSerious { get { lock (gate) return events.Any(e => e.serious); } }
 
+    /// <summary>Something new happened (not a repeat of the last minutes): worth an unasked comment.</summary>
+    public bool HasNews { get { lock (gate) return events.Any(e => !e.repeat); } }
+    public bool HasSeriousNews { get { lock (gate) return events.Any(e => e.serious && !e.repeat); } }
+
     void Add(int cycle, string text, bool serious = false)
     {
         lock (gate)
         {
-            events.Add((DateTime.UtcNow, cycle, text, serious));
+            var now = DateTime.UtcNow;
+            string key = System.Text.RegularExpressions.Regex.Replace(text, @"[d.,]+", "#");
+            bool repeat = lastSeen.TryGetValue(key, out var at) && now - at < RepeatWindow;
+            lastSeen[key] = now;
+            events.Add((now, cycle, text, serious, repeat));
             if (events.Count > 200) events.RemoveRange(0, events.Count - 200);
         }
     }
