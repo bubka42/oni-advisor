@@ -102,6 +102,8 @@ richer briefings with on-screen annotations, ONI-consistent visuals, fair play (
 Mic: laptop Realtek Microphone Array (QC45 headphones for output only).
 
 ## Ideas parked for later
+- **Open playtest readiness** (release package, Claude Code detection, metadata, permissions, reports): see
+  `docs/PLAYTEST-READINESS.md`.
 
 - Pod pick by command; pipe/wire placement for projects; in-game text input; streaming TTS of the first
   sentence; Haiku as live model if speed matters more; generalising into a multi-game toolset
