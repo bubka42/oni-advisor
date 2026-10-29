@@ -621,21 +621,52 @@ public sealed class MainForm : Form
             // Minimal advice: only critical tips light the bulb or speak; anything else stays a quiet chat entry.
             if (settings.AdviceLevel == "minimal" && level != "critical") level = null;
         }
+        // A headline for the card and the voice; the details (if any) only in the chat, behind TELL ME MORE.
+        var (headline, more) = SplitHeadline(answer);
+        answer = more.Length > 0 ? headline + "\n\n" + more : headline;
         long entry = chat.Add(level != null ? "tip-" + level : "advisor", answer, cycle, thread);
         RecordMarksSource(turnStartUtc, entry);
         if (level != null) Tips.Add(liveDir, level, answer, cycle, entry);
         chat.Stream("idle");
         Append(level != null ? $"Tip ({level})" : "Advisor", answer, level == "critical" ? Color.Salmon : level == "urgent" ? Color.Orange : Color.PaleGreen);
-        string spoken = Spoken(answer);
+        string spoken = Spoken(headline);
         if (settings.Speak && trigger is not "autosave" and not "briefing" && level != "later" && !(unasked && level == null)) voice.Speak(spoken);
         LogAnswer(text ?? $"({trigger})", answer);
         convo.Add(trigger switch { "hotkey" => "look", "pod" => "pod", "plan" => "plan", "update" => "unasked", "review" => "plan review", "guide" => "guided plan", _ => thread != null ? "thread" : "live" }, cycle,
                   text ?? trigger switch { "hotkey" => "(pressed 'look at this')", "pod" => "(Printing Pod open)", "plan" => "(sent a sketch)", "guide" => $"(asked for a layout around a {(string?)req?["name"]} at {(int?)req?["x"]},{(int?)req?["y"]})", "update" or "review" => "(nothing asked)", _ => "" }, answer);
-        // The game shows tips, and answers to questions not typed in the panel, in a card (full text, REPLY / CLOSE).
+        // The game shows tips, and answers to questions not typed in the panel, in a card: the headline, with
+        // TELL ME MORE (the whole message in its chat thread) when there are details.
         string via = (string?)req?["via"] ?? (trigger == "chat" ? "panel" : trigger);
-        if (!(unasked && level == null)) WriteStatus("replied", spoken, answer, level, entry, via);
+        if (!(unasked && level == null)) WriteStatus("replied", spoken, headline, level, entry, via, more.Length > 0);
         else WriteStatus("idle", null);
         await HandOverIfLong();
+    }
+
+    /// <summary>
+    /// The advisor writes a headline, then optionally a line "---" and the details. Without the separator: the
+    /// first paragraph is the headline (its first two sentences if it runs long), the rest the details.
+    /// </summary>
+    internal static (string headline, string more) SplitHeadline(string answer)
+    {
+        var rx = global::System.Text.RegularExpressions.Regex.Match(answer, @"^[ \t]*-{3,}[ \t]*$", global::System.Text.RegularExpressions.RegexOptions.Multiline);
+        string head, more;
+        if (rx.Success) { head = answer[..rx.Index].Trim(); more = answer[(rx.Index + rx.Length)..].Trim(); }
+        else
+        {
+            var parts = global::System.Text.RegularExpressions.Regex.Split(answer.Trim(), @"\r?\n\s*\r?\n", global::System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+            head = parts[0].Trim(); more = string.Join("\n\n", parts.Skip(1)).Trim();
+        }
+        if (head.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 45 && !head.Contains('\n'))
+        {
+            var sentences = global::System.Text.RegularExpressions.Regex.Split(head, @"(?<=[.!?])\s+");
+            if (sentences.Length > 2)
+            {
+                more = (string.Join(" ", sentences.Skip(2)) + (more.Length > 0 ? "\n\n" + more : "")).Trim();
+                head = string.Join(" ", sentences.Take(2));
+            }
+        }
+        if (head.Length == 0) (head, more) = (more, "");
+        return (head, more);
     }
 
     /// <summary>What to read aloud: all of it, without the markup; list items and lines end in a pause. (The
@@ -962,10 +993,10 @@ public sealed class MainForm : Form
                 sb.AppendLine("The player pressed 'look at this'. Say what matters most about what they are looking at.");
                 break;
             case "update":
-                sb.AppendLine("Nothing was asked: this is a game update. If something above is worth telling the player now — a risk, a mistake, a consequence of what they just built, a good next step — give a tip: start with its urgency, [critical] (pauses the game: someone may die or something breaks within moments), [urgent] (check it as soon as convenient) or [later] (at leisure), then say it briefly (urgent and critical tips are read aloud), with marks if a place matters. Don't repeat what you already told them. Otherwise reply exactly: (silent)");
+                sb.AppendLine("Nothing was asked: this is a game update. Most updates need nothing from you: the player can see their own colony. Speak up only if something above matters at the scale of the colony and they may not have noticed it: someone about to get hurt, a mistake that will cost cycles, a consequence they can't see from where they are. Size it honestly: a broken wire or a building waiting for a repair is one sentence (\"The wire at the marked spot broke; repair it.\"), not a chain of consequences. If you speak: start with [critical] (pauses the game: someone may die within moments), [urgent] or [later]; then a headline of at most two short sentences (what, and what to do); marks if a place matters; details only if really needed, after a line ---. No numbers unless they change what the player does. Don't repeat what you, or the latest briefing, already said. Otherwise reply exactly: (silent)");
                 break;
             case "review":
-                sb.AppendLine("Nothing was asked and nothing urgent is going on: time to look ahead (see CLAUDE.md, \"Long-term planning\"). Review live/colony-plan.md and the projects (live/quests.json, live/quests-state.json; CLAUDE.md, \"Projects\") against the colony as it is now: update the plan, propose a project when the player has no good next one, scrap proposals that no longer fit, flag milestones that look done, and give advice on ongoing or stalled projects where it matters. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
+                sb.AppendLine("Nothing was asked and nothing urgent is going on: time to work on the big picture (CLAUDE.md, \"What you are for\" and \"Long-term planning\"). Take the most pressing of the open questions in live/colony-plan.md (where to get the next resource and how to reach it past the hazards, food for the coming 20 cycles, base layout and rooms, which researched buildings to build next, ...; add questions the colony now faces) and answer it properly: explore the map memory (MapQuery find, region terrain/gas around the route), work out the where and the how, draw it (marks, a drafted project) and give the player a short [later] tip or a briefing. Also review live/colony-plan.md and the projects (live/quests.json, live/quests-state.json; CLAUDE.md, \"Projects\") against the colony as it is now: update the plan, propose a project when the player has no good next one, scrap proposals that no longer fit, flag milestones that look done, and give advice on ongoing or stalled projects where it matters. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
                 break;
         }
         if (text != null && trigger is "ask" or "chat") sb.AppendLine($"Player ({(via == "voice" ? "spoken" : "typed")}): {text}");
@@ -1001,13 +1032,13 @@ public sealed class MainForm : Form
     }
 
     /// <summary>Tells the game mod what the advisor is doing; the mod shows it in its status badge.</summary>
-    void WriteStatus(string state, string? text, string? full = null, string? level = null, long chatEntry = 0, string? via = null)
+    void WriteStatus(string state, string? text, string? full = null, string? level = null, long chatEntry = 0, string? via = null, bool more = false)
     {
         try
         {
             var path = Path.Combine(liveDir, "advisor-status.json");
             var tmp = path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(new { state, text, full, level, chat = chatEntry, via, utc = DateTime.UtcNow.ToString("o") }));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(new { state, text, full, level, chat = chatEntry, via, more, utc = DateTime.UtcNow.ToString("o") }));
             File.Move(tmp, path, overwrite: true);
         }
         catch { }

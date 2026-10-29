@@ -147,7 +147,8 @@ public sealed class GameWatch
         lock (gate) return events.Count > n0;
     }
 
-    static readonly string[] SeriousWords = { "suffocat", "holding breath", "starv", "hungry", "scald", "flood", "overload", "dying", "incapacitated", "injur", "no oxygen", "low oxygen", "stress" };
+    // Serious = someone may get hurt soon. Not: a wire overloading, Hungry, a bit of stress (told, but no reason to interrupt).
+    static readonly string[] SeriousWords = { "suffocat", "starv", "scald", "flood", "dying", "incapacitated", "injur", "no oxygen" };
     static bool Serious(string s) => SeriousWords.Any(w => s.Contains(w, StringComparison.OrdinalIgnoreCase));
 
     Snap? Read()
