@@ -922,7 +922,7 @@ public sealed class MainForm : Form
         sb.AppendLine("Colony summary: " + ColonyDigest.Build(liveDir));
         string questLine = quests.Summary();
         if (questLine.Length > 0) sb.AppendLine(questLine);
-        sb.AppendLine("Tools: MapQuery = dotnet \"" + MapQueryDll() + "\" (live region|cell|buildings|pipes|ports|rates|find ...). Files: live/state.json, live/map/, live/screenshots/, live/colony-plan.md.");
+        sb.AppendLine("Tools: MapQuery = dotnet \"" + MapQueryDll() + "\" (live region|cell|buildings|pipes|ports|rates|find ...), one plain command per Bash call, nothing else on the line. Files: live/state.json, live/map/, live/screenshots/, live/colony-plan.md.");
         if ((string?)req?["screenshot"] is { } shotPath)
             sb.AppendLine(trigger is "hotkey" or "plan" ? "The attached screenshot is what the player sees right now." : "Screenshot: " + RelativeToAdvisor(shotPath));
         if (thread != null)

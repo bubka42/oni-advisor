@@ -87,7 +87,7 @@ public sealed class ClaudeRunner
         psi.ArgumentList.Add("--permission-mode");
         psi.ArgumentList.Add("dontAsk");
         psi.ArgumentList.Add("--allowedTools");
-        psi.ArgumentList.Add("Read(./**) Glob Grep Write(./**) Edit(./**) Bash(dotnet *)");
+        psi.ArgumentList.Add("Read(./**) Glob Grep Edit(./**) Bash(dotnet *)");
         if (!string.IsNullOrWhiteSpace(settings.Model)) { psi.ArgumentList.Add("--model"); psi.ArgumentList.Add(settings.Model!); }
         psi.Environment["PATH"] = dotnetDir + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? "");
         psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";

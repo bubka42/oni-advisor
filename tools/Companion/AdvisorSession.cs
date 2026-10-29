@@ -61,7 +61,7 @@ public sealed class AdvisorSession : IDisposable
         };
         var args = new List<string> { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
                                       "--permission-mode", "dontAsk",
-                                      "--allowedTools", "Read(./**) Glob Grep Write(./**) Edit(./**) Bash(dotnet *)",
+                                      "--allowedTools", "Read(./**) Glob Grep Edit(./**) Bash(dotnet *)",
                                       "--model", string.IsNullOrWhiteSpace(settings.Model) ? "sonnet" : settings.Model!,
                                       "--effort", string.IsNullOrWhiteSpace(settings.Effort) ? "medium" : settings.Effort! };
         // Resume the conversation if there is one, so a restart doesn't make the advisor forget.

@@ -105,6 +105,14 @@ dotnet <MapQuery.dll> live view                                      (refresh th
 ```
 Each query takes a second or two: use them whenever they make the answer right.
 
+**How to run them (or they are denied).** The only shell command you are allowed is one plain `dotnet`
+command per Bash call, written out in full with the quoted MapQuery path from the prompt:
+`dotnet "C:\...\MapQuery.dll" live buildings 99 195 125 199`. Nothing else on the line: no `cd`, no
+variables (`M=...`), no `;`, `&&` or pipes (`| head`), no redirects. Anything else is denied without asking,
+and so is the PowerShell tool. Run several queries as several Bash calls (in parallel if you like). For files
+use Read, Glob, Grep, Write and Edit, never `cat`, `ls`, `echo` or heredocs. If a query is denied, check the
+command against this rule and run it again correctly; don't tell the player the shell is blocked.
+
 **Pipes, wires and rails.** `pipes` draws a network layer: box-drawing glyphs show how segments connect
 (up = the row above), then for gas/liquid an element letter and a fill digit (9 = a full packet: 1 kg gas,
 10 kg liquid; blank = empty pipe); for power a circuit letter. `ports` is usually the faster way to find a
