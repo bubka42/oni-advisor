@@ -225,7 +225,9 @@ namespace OniAdvisor
             return row;
         }
 
-        static void CloseCard()
+        public static bool CardOpen => card != null;
+
+        public static void CloseCard()
         {
             if (card != null) UnityEngine.Object.Destroy(card.gameObject);
             card = null; open = null;

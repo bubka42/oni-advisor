@@ -137,9 +137,10 @@ namespace OniAdvisor
                 if (Input.GetKeyDown(KeyCode.LeftArrow)) Guard("briefing back", Briefing.Back);
                 if (Input.GetKeyDown(KeyCode.Escape)) Guard("briefing close", Briefing.Close);
             }
-            // Esc closes the advisor panel (the first Esc only leaves the typing box: see AdvisorPanel).
-            else if (AdvisorPanel.IsOpen && !AdvisorPanel.Typing && Input.GetKeyDown(KeyCode.Escape) && !AdvisorPanel.JustLeftTyping)
-                Guard("advisor panel", AdvisorPanel.Close);
+            // Esc closes the advisor's panel, tip card, pin card and projects list (Esc with a draft in the text box
+            // only leaves the box: see AdvisorPanel).
+            else if (AdvisorKeys.EscTargets && !AdvisorPanel.Typing && Input.GetKeyDown(KeyCode.Escape) && !AdvisorPanel.JustLeftTyping)
+                Guard("close advisor windows", AdvisorKeys.CloseAll);
 
             if (AdvisorPanel.Typing || ModOptions.Typing) return; // keys go to the text box
             if (Hotkeys.Down("look")) { AdvisorHud.Show("Sent to the advisor: snapshot, screenshot and maps"); Export("hotkey", screenshot: true, request: true); }
@@ -148,6 +149,7 @@ namespace OniAdvisor
             if (Hotkeys.Down("briefing")) Guard("briefing", Briefing.Toggle);
             if (Hotkeys.Down("panel")) Guard("advisor panel", AdvisorPanel.Toggle);
             if (Hotkeys.Down("voice")) WriteRequest("speak-toggle", null);
+            if (Hotkeys.Down("hush")) WriteRequest("hush", null); // stop reading the current message (the voice stays on)
             if (Hotkeys.Down("plan")) Guard("planning toggle", PlanMode.Toggle);
             if (Hotkeys.Down("overlay")) Guard("overlay cycle", () => { Overlays.Cycle(); AdvisorHud.Show("Advisor overlay: " + Overlays.Describe(), 2.5f); });
             if (Hotkeys.Down("projects")) Guard("project focus", () => AdvisorHud.Show("Projects: " + ProjectStore.CycleFocus(), 2.5f));

@@ -63,21 +63,23 @@ namespace OniAdvisor
             if (open) Close(); else Open();
         }
 
-        public static void Open(bool chat = true) => Show(chat ? Page.Chat : Page.Briefings, null);
+        /// <summary>Opens the panel without taking the keyboard: the text box gets it only when clicked, or when the
+        /// panel was opened by a REPLY / ASK / DISCUSS click (OpenThread, OpenWithText), or with Enter.</summary>
+        public static void Open(bool chat = true) => Show(chat ? Page.Chat : Page.Briefings, null, focus: false);
 
         /// <summary>Opens the main chat with the input box already started (e.g. "About the pin ...: ").</summary>
         public static void OpenWithText(string text)
         {
-            Show(Page.Chat, null);
+            Show(Page.Chat, null, focus: true);
             if (input == null) return;
             input.text = text;
             input.caretPosition = text.Length;
         }
 
         /// <summary>Opens the chat on a thread (a tip's, a briefing's, an answer's, or "plan").</summary>
-        public static void OpenThread(string id) => Show(Page.Chat, id);
+        public static void OpenThread(string id) => Show(Page.Chat, id, focus: true);
 
-        static void Show(Page p, string threadId)
+        static void Show(Page p, string threadId, bool focus)
         {
             if (Briefing.IsOpen) Briefing.Close();
             Build();
@@ -86,7 +88,7 @@ namespace OniAdvisor
             panel.gameObject.SetActive(true);
             thread = threadId;
             ShowPage(p);
-            if (p == Page.Chat) Focus();
+            if (p == Page.Chat && focus) Focus();
             TipBulb.AllSeen(); // the tips are in the chat
             if (eagerLabel != null) eagerLabel.text = EagernessLabel(Prefs.Eagerness); // it may have changed in the options
         }
@@ -126,7 +128,12 @@ namespace OniAdvisor
         {
             if (!open) return;
             if (Typing) lastTypingFrame = Time.frameCount;
-            if (Typing && Input.GetKeyDown(KeyCode.Escape)) { input.DeactivateInputField(); UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(null); }
+            // Esc in the box: with a draft it only leaves the box (the draft stays); empty, it closes the panel.
+            if (Typing && Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (string.IsNullOrWhiteSpace(input.text)) { AdvisorKeys.EscUsed(); Close(); return; }
+                input.DeactivateInputField(); UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(null);
+            }
             else if (!Typing && page == Page.Chat && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))) Focus();
             if (now < nextPoll) return;
             nextPoll = now + 0.3f;
@@ -645,11 +652,27 @@ namespace OniAdvisor
     /// </summary>
     internal static class AdvisorKeys
     {
+        static int escFrame = -10;
+
+        /// <summary>Advisor things Esc closes (before the game's menu gets the key).</summary>
+        internal static bool EscTargets => AdvisorPanel.IsOpen || AdvisorCard.IsOpen || Pins.CardOpen || QuestPanel.IsOpen;
+
+        /// <summary>One Esc closes them all: the panel, the tip card, an open pin card and the projects list.</summary>
+        internal static void CloseAll()
+        {
+            EscUsed();
+            if (AdvisorCard.IsOpen) AdvisorRunner.WriteRequest("hush", null); // a tip closed with Esc stops being read out
+            AdvisorPanel.Close(); AdvisorCard.Close(); Pins.CloseCard(); QuestPanel.Close();
+        }
+
+        /// <summary>This frame's Esc was ours: the game must not also open its menu with it.</summary>
+        internal static void EscUsed() => escFrame = Time.frameCount;
+
         internal static bool Swallow(KButtonEvent e, bool down)
         {
             if (AdvisorPanel.Typing || ModOptions.Typing || AdvisorPanel.JustLeftTyping) return true;
             if (Briefing.IsOpen && (e.IsAction(Action.Escape) || e.IsAction(Action.TogglePause) || e.IsAction(Action.PanLeft) || e.IsAction(Action.PanRight))) return true;
-            if (AdvisorPanel.IsOpen && e.IsAction(Action.Escape)) return true;
+            if (e.IsAction(Action.Escape) && (EscTargets || Time.frameCount - escFrame <= 1)) return true;
             if (down && (AdvisorPanel.PointerOver || QuestPanel.PointerOver) && (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))) return true;
             return Hotkeys.IsOursNow();
         }

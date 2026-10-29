@@ -7,12 +7,13 @@ using UnityEngine.UI;
 namespace OniAdvisor
 {
     /// <summary>
-    /// The PROJECTS list on the left edge of the screen: collapsible sections ONGOING, PROPOSED, ON HOLD and
+    /// The PROJECTS button next to the ADVISOR button, and the list it opens on the left of the screen (on top of
+    /// the game's notifications, which is why it stays closed until asked for): collapsible sections ONGOING, PROPOSED, ON HOLD and
     /// DONE; each project folds open to its reason, the advisor's advice, its milestones (click a box to tick
     /// it) and its buttons (accept / decline, hold / abandon / resume, its blueprint, DISCUSS). Every project
     /// and milestone has its own thread in the advisor panel ("quest:ID", "quest:ID:MILESTONE").
-    /// Hidden during briefings and planning mode, while the game's build menu or a building's details are
-    /// open (they use the same side of the screen), and while there is nothing to show.
+    /// The list closes with Esc or the button; it steps aside while the game's build menu or a building's details
+    /// are open (same side of the screen). Both hide during briefings and planning mode, and with nothing to show.
     /// UNTESTED IN GAME.
     /// </summary>
     internal static class QuestPanel
@@ -20,7 +21,9 @@ namespace OniAdvisor
         static RectTransform root, content;
         static TextMeshProUGUI headerText;
         static int drawnVersion = -1;
-        static bool collapsed;
+        static bool shown;           // the list is open (the PROJECTS button next to ADVISOR toggles it)
+        static Button button;
+        static TextMeshProUGUI buttonLabel;
         static readonly HashSet<string> openSections = new HashSet<string> { "accepted", "proposed" };
         static readonly HashSet<string> openQuests = new HashSet<string>();
 
@@ -32,11 +35,16 @@ namespace OniAdvisor
         public static void Tick()
         {
             var visible = QuestStore.All.Where(q => Sections.Any(s => s.status == q.Status)).ToList();
-            bool show = visible.Count > 0 && !Briefing.IsOpen && !PlanMode.Active && !GamePanelsOpen();
-            if (!show) { if (root != null) root.gameObject.SetActive(false); return; }
+            bool any = visible.Count > 0 && !Briefing.IsOpen && !PlanMode.Active;
+            if (!any && button == null) return;
             Build();
             if (root == null) return;
-            root.gameObject.SetActive(true);
+            button.gameObject.SetActive(any);
+            int ongoing = visible.Count(q => q.Status == "accepted"), proposed = visible.Count(q => q.Status == "proposed");
+            buttonLabel.text = $"PROJECTS  <size=15>{ongoing}{(proposed > 0 ? $" <color=#{ColorUtility.ToHtmlStringRGB(OniStyle.Header)}>+{proposed} new</color>" : "")}</size>";
+            bool show = any && shown && !GamePanelsOpen();
+            root.gameObject.SetActive(show);
+            if (!show) return;
             if (drawnVersion == QuestStore.Version) return;
             drawnVersion = QuestStore.Version;
             Redraw(visible);
@@ -62,9 +70,7 @@ namespace OniAdvisor
         {
             for (int i = content.childCount - 1; i >= 0; i--) Object.Destroy(content.GetChild(i).gameObject);
             int ongoing = visible.Count(q => q.Status == "accepted"), proposed = visible.Count(q => q.Status == "proposed");
-            headerText.text = $"{(collapsed ? "+" : "-")}  PROJECTS  <size=14><color=#D2D4EB>{ongoing} ongoing · {proposed} proposed</color></size>";
-            content.parent.gameObject.SetActive(!collapsed); // the scroll view
-            if (collapsed) return;
+            headerText.text = $"PROJECTS  <size=14><color=#D2D4EB>{ongoing} ongoing · {proposed} proposed</color></size>";
 
             foreach (var (status, title) in Sections)
             {
@@ -205,7 +211,7 @@ namespace OniAdvisor
             var himg = OniStyle.Fill(header, OniStyle.Header, true);
             var hb = header.gameObject.AddComponent<Button>();
             hb.targetGraphic = himg;
-            hb.onClick.AddListener(() => { collapsed = !collapsed; Dirty(); });
+            hb.onClick.AddListener(Close);
             var ht = OniStyle.Rect("text", header);
             OniStyle.Stretch(ht, 10, 0);
             headerText = OniStyle.Label(ht, "PROJECTS", 18, header: true, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
@@ -224,14 +230,32 @@ namespace OniAdvisor
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             var scroll = view.gameObject.AddComponent<ScrollRect>();
             scroll.content = content; scroll.viewport = view; scroll.horizontal = false; scroll.vertical = true; scroll.scrollSensitivity = 25;
+            root.gameObject.SetActive(false);
+
+            // The button, right of the ADVISOR button at the bottom centre (that one is 300 wide).
+            button = OniStyle.MakeButton(AdvisorHud.Canvas, "PROJECTS", Toggle, 210);
+            var brt = (RectTransform)button.transform;
+            brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0f);
+            brt.pivot = new Vector2(0f, 0f);
+            brt.anchoredPosition = new Vector2(158f, 10f);
+            brt.sizeDelta = new Vector2(210f, 36f);
+            buttonLabel = button.GetComponentInChildren<TextMeshProUGUI>();
+            buttonLabel.richText = true;
         }
+
+        public static bool IsOpen => root != null && root.gameObject.activeSelf;
+
+        public static void Toggle() { shown = !shown; Dirty(); }
+
+        public static void Close() { shown = false; if (root != null) root.gameObject.SetActive(false); }
 
         public static bool PointerOver => root != null && root.gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(root, Input.mousePosition, null);
 
         public static void Destroy()
         {
             if (root != null) Object.Destroy(root.gameObject);
-            root = null; drawnVersion = -1;
+            if (button != null) Object.Destroy(button.gameObject);
+            root = null; button = null; drawnVersion = -1;
         }
     }
 }

@@ -355,6 +355,7 @@ public sealed class MainForm : Form
             case "new-chat": advisor.NewConversation(); chat.Add("note", "New conversation started.", ReadCycle()); break;
             case "stop": cts?.Cancel(); cts = null; voice.StopSpeaking(); break;
             case "speak-toggle": ToggleVoice(); break;
+            case "hush": voice.StopSpeaking(); break; // this message only; the voice stays on
             case "voice" when (int?)req["speaker"] is int id: ChooseVoice(id, (string?)req["name"]); break;
             case "settings": ApplySettings(); break;
             default: System($"({trigger} from the game; auto-reply is off)"); break;
@@ -637,14 +638,14 @@ public sealed class MainForm : Form
         await HandOverIfLong();
     }
 
-    /// <summary>What to read aloud: a short answer whole; a long one's first two sentences and a pointer to the panel.</summary>
+    /// <summary>What to read aloud: all of it, without the markup; list items and lines end in a pause. (The
+    /// player stops it with the hush key or by closing the card.)</summary>
     static string Spoken(string answer)
     {
         var plain = global::System.Text.RegularExpressions.Regex.Replace(answer, @"[*_`#>]|\[[^\]]*\]\([^)]*\)", "");
         plain = global::System.Text.RegularExpressions.Regex.Replace(plain, @"^\s*[-•]\s*", "", global::System.Text.RegularExpressions.RegexOptions.Multiline).Trim();
-        if (plain.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 45) return plain;
-        var sentences = global::System.Text.RegularExpressions.Regex.Split(plain, @"(?<=[.!?])\s+");
-        return string.Join(" ", sentences.Take(2)); // the full text is on screen; no need to say so every time
+        plain = global::System.Text.RegularExpressions.Regex.Replace(plain, @"(?<![.!?:;,])[ \t]*\r?\n\s*", ". ");
+        return global::System.Text.RegularExpressions.Regex.Replace(plain, @"\s*\r?\n\s*", " ").Trim();
     }
 
     /// <summary>

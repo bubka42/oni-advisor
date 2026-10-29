@@ -48,6 +48,16 @@ advisor marks + project ghosts at correct tiles, toasts + status badge, companio
 5. **Escalation**: live reply ending in `[[briefing: topic]]` → companion strips it, enqueues a focused
    briefing.
 6. Pod options (`pod.json`) and delegation (commands/approvals/rules) — never exercised.
+7. **2026-10-29 playtest fixes**:
+   - briefing panel text sizes
+   - the PROJECTS button next to ADVISOR (the list opens on click)
+   - the panel opens without taking the keyboard
+   - Esc closes the panel, the tip card, the pin card and the projects list
+   - GameWatch: quiet events, a 5-minute settle for new buildings, and the fix for the repeat key's digit pattern
+   - unit words in speech
+   - full-length spoken tips, silenced by the hush key (Ctrl+Shift+H / H), CLOSE or Esc
+   - the "NO BLUEPRINT YET" prompt reminder
+   - MapQuery as one plain `dotnet` command
 
 ## Architecture in one paragraph
 

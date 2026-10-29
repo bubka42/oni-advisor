@@ -406,7 +406,7 @@ namespace OniAdvisor
             panel.anchorMin = panel.anchorMax = new Vector2(1f, 0.5f);
             panel.pivot = new Vector2(1f, 0.5f);
             panel.anchoredPosition = new Vector2(-16, 20);
-            panel.sizeDelta = new Vector2(470, 760);
+            panel.sizeDelta = new Vector2(600, 820); // as wide as the advisor panel's text needs
             OniStyle.Fill(panel, OniStyle.Panel, true); // blocks clicks to the world behind the panel
 
             // Pink header bar with the title.
@@ -422,7 +422,7 @@ namespace OniAdvisor
             var view = OniStyle.Rect("view", panel);
             view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one;
             view.offsetMin = new Vector2(10, 84); view.offsetMax = new Vector2(-10, -48);
-            OniStyle.Fill(view, OniStyle.PanelDark, true);
+            OniStyle.Fill(view, OniStyle.Ink, true); // dark backing for light text, like the advisor panel
             view.gameObject.AddComponent<RectMask2D>();
             list = OniStyle.Rect("list", view);
             list.anchorMin = new Vector2(0, 1); list.anchorMax = new Vector2(1, 1); list.pivot = new Vector2(0.5f, 1);
@@ -449,7 +449,7 @@ namespace OniAdvisor
             var ft = OniStyle.Rect("footer", panel);
             ft.anchorMin = new Vector2(0, 0); ft.anchorMax = new Vector2(1, 0); ft.pivot = new Vector2(0.5f, 0);
             ft.sizeDelta = new Vector2(-24, 30); ft.anchoredPosition = new Vector2(0, 6);
-            footerText = OniStyle.Label(ft, "", 13, color: OniStyle.TextMuted, align: TextAlignmentOptions.Midline, wrap: false);
+            footerText = OniStyle.Label(ft, "", 15, color: OniStyle.TextMuted, align: TextAlignmentOptions.Midline, wrap: false);
         }
 
         static void Rebuild()
@@ -463,13 +463,13 @@ namespace OniAdvisor
                 var s = steps[i];
                 bool active = i == current;
                 var row = OniStyle.Rect("step" + i, list);
-                OniStyle.Fill(row, active ? OniStyle.RowActive : OniStyle.Row, false);
+                OniStyle.Fill(row, active ? OniStyle.InkRowLight : OniStyle.InkRow, false);
                 var rv = row.gameObject.AddComponent<VerticalLayoutGroup>();
                 rv.padding = new RectOffset(10, 10, 6, 8); rv.spacing = 2;
                 rv.childControlHeight = true; rv.childControlWidth = true; rv.childForceExpandHeight = false;
-                Add(row, $"{i + 1}. {(s.Title ?? "").ToUpperInvariant()}", 16, header: true, color: active ? Color.white : OniStyle.TextMuted);
-                if (!string.IsNullOrEmpty(s.Say)) Add(row, s.Say, 15);
-                if (!string.IsNullOrEmpty(s.Text) && active) Add(row, s.Text, 13, color: OniStyle.TextMuted);
+                Add(row, $"{i + 1}. {(s.Title ?? "").ToUpperInvariant()}", 20, header: true, color: active ? OniStyle.HeaderLight : OniStyle.TextMuted);
+                if (!string.IsNullOrEmpty(s.Say)) Add(row, s.Say, 19, color: OniStyle.Text);
+                if (!string.IsNullOrEmpty(s.Text) && active) Add(row, s.Text, 18, color: OniStyle.TextMuted);
             }
 
             footerText.text = steps.Count > 0 ? (paused ? $"Step {current + 1} of {steps.Count} · PAUSED · Space continues" : $"Step {current + 1} of {steps.Count} · Space pause · Left/Right step · Esc close") : "";

@@ -27,7 +27,7 @@ namespace OniAdvisor
         {
             ("panel", "Advisor panel"), ("briefing", "Briefing"), ("talk", "Talk (hold)"), ("look", "Look at this"),
             ("plan", "Planning mode"), ("guide", "Guided planning"), ("overlay", "Advisor overlay"),
-            ("projects", "Project focus"), ("voice", "Voice on/off"), ("companion", "Companion window"),
+            ("projects", "Project focus"), ("hush", "Stop talking (this message)"), ("voice", "Voice on/off"), ("companion", "Companion window"),
             ("clearMarks", "Clear my marks (planning)"),
         };
 
@@ -35,14 +35,14 @@ namespace OniAdvisor
         {
             ["panel"] = "Ctrl+Shift+T", ["briefing"] = "Ctrl+Shift+B", ["talk"] = "Ctrl+Shift+V", ["look"] = "Ctrl+Shift+A",
             ["plan"] = "Ctrl+Shift+P", ["guide"] = "Ctrl+Shift+G", ["overlay"] = "Ctrl+Shift+M", ["projects"] = "Ctrl+Shift+N",
-            ["voice"] = "Ctrl+Shift+Q", ["companion"] = "Ctrl+Shift+C", ["clearMarks"] = "Ctrl+Shift+X",
+            ["voice"] = "Ctrl+Shift+Q", ["hush"] = "Ctrl+Shift+H", ["companion"] = "Ctrl+Shift+C", ["clearMarks"] = "Ctrl+Shift+X",
         };
 
         static readonly Dictionary<string, string> Simple = new Dictionary<string, string>
         {
             ["panel"] = "T", ["briefing"] = "B", ["talk"] = "V", ["look"] = "L",
             ["plan"] = "P", ["guide"] = "G", ["overlay"] = "M", ["projects"] = "N",
-            ["voice"] = "Q", ["companion"] = "Ctrl+Shift+C", ["clearMarks"] = "X",
+            ["voice"] = "Q", ["hush"] = "H", ["companion"] = "Ctrl+Shift+C", ["clearMarks"] = "X",
         };
 
         static Dictionary<string, Binding> current;

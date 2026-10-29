@@ -9,16 +9,17 @@ namespace OniAdvisor.Companion;
 /// </summary>
 public sealed class Quests
 {
-    readonly string questsFile, stateFile;
+    readonly string questsFile, stateFile, projectsFile;
     Dictionary<string, (string status, HashSet<string> done)>? last;
 
     public Quests(string liveDir)
     {
         questsFile = Path.Combine(liveDir, "quests.json");
         stateFile = Path.Combine(liveDir, "quests-state.json");
+        projectsFile = Path.Combine(liveDir, "projects", "projects.json");
     }
 
-    sealed record Quest(string Id, string Title, string Status, List<(string id, string text)> Milestones, HashSet<string> Done);
+    sealed record Quest(string Id, string Title, string Status, List<(string id, string text)> Milestones, HashSet<string> Done, string Kind, string? Project);
 
     List<Quest> Read()
     {
@@ -39,7 +40,7 @@ public sealed class Quests
             foreach (var x in q?["milestones"]?.AsArray() ?? new JsonArray())
                 ms.Add(x is JsonValue v ? ($"m{++m}", (string?)v ?? "") : ((string?)x?["id"] ?? $"m{++m}", (string?)x?["text"] ?? ""));
             var done = new HashSet<string>(ms.Where(x => (bool?)s?["milestones"]?[x.Item1] == true).Select(x => x.Item1));
-            list.Add(new Quest(id, (string?)q?["title"] ?? id, status, ms, done));
+            list.Add(new Quest(id, (string?)q?["title"] ?? id, status, ms, done, (string?)q?["kind"] ?? "infrastructure", (string?)q?["project"]));
         }
         return list;
     }
@@ -54,7 +55,30 @@ public sealed class Quests
             return items.Count == 0 ? "" : $"{label}: {string.Join("; ", items)}";
         }
         var parts = new[] { Part("accepted", "ongoing"), Part("proposed", "proposed"), Part("stalled", "on hold") }.Where(p => p.Length > 0).ToList();
-        return parts.Count == 0 ? "" : "Projects (live/quests.json + the player's live/quests-state.json): " + string.Join(" | ", parts);
+        if (parts.Count == 0) return "";
+        string line = "Projects (live/quests.json + the player's live/quests-state.json): " + string.Join(" | ", parts);
+        // Infrastructure projects need a drafted blueprint (the ghost the player sees): remind until there is one.
+        var drafted = DraftedProjects();
+        var missing = qs.Where(q => q.Kind != "colony" && q.Status is "proposed" or "accepted" && (q.Project == null || !drafted.Contains(q.Project)))
+                        .Select(q => $"{q.Title} [{q.Id}]").ToList();
+        if (missing.Count > 0)
+            line += $"\nNO BLUEPRINT YET for: {string.Join("; ", missing)}. Draft one (the most useful first; one per turn is fine) in live/projects/projects.json and link it from the quest with \"project\", so the player sees its ghost.";
+        return line;
+    }
+
+    /// <summary>The project ids in live/projects/projects.json.</summary>
+    HashSet<string> DraftedProjects()
+    {
+        var ids = new HashSet<string>();
+        try
+        {
+            if (!File.Exists(projectsFile)) return ids;
+            var root = JsonNode.Parse(File.ReadAllText(projectsFile));
+            foreach (var p in (root is JsonArray a ? a : root?["projects"]?.AsArray()) ?? new JsonArray())
+                if ((string?)p?["id"] is { } id) ids.Add(id);
+        }
+        catch { }
+        return ids;
     }
 
     /// <summary>What the player did with the projects since the last call (accepted, ticked, held …), one line each.</summary>

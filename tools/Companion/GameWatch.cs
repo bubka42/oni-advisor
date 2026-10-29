@@ -8,6 +8,9 @@ namespace OniAdvisor.Companion;
 /// buildings built or removed, building problems appearing or resolved, batteries, research, the cycle. The
 /// list goes into the advisor's next prompt ("since your last message ..."), so it never starts cold, and can
 /// prompt an unasked comment.
+/// Not reasons to speak up (told, but marked as repeats): the player's own actions (built, removed, research
+/// picked), things that got better, and problems on buildings finished in the last few minutes - the player is
+/// likely still wiring and plumbing them. Those count only if still there SettleTime after the building went up.
 /// </summary>
 public sealed class GameWatch
 {
@@ -20,6 +23,11 @@ public sealed class GameWatch
     /// <summary>An event that happened within this window before is a repeat: told, but no reason to speak up again.</summary>
     public TimeSpan RepeatWindow = TimeSpan.FromMinutes(20);
     readonly object gate = new();
+
+    /// <summary>How long a just-built building may have problems before they are news (it is still being hooked up).</summary>
+    public TimeSpan SettleTime = TimeSpan.FromMinutes(5);
+    readonly Dictionary<string, DateTime> lastBuilt = new();  // building name -> when one was last built
+    readonly Dictionary<string, DateTime> settling = new();   // building problem -> when it becomes news if still there
 
     public GameWatch(string liveDir) => statePath = Path.Combine(liveDir, "state.json");
 
@@ -74,13 +82,13 @@ public sealed class GameWatch
     public bool HasNews { get { lock (gate) return events.Any(e => !e.repeat); } }
     public bool HasSeriousNews { get { lock (gate) return events.Any(e => e.serious && !e.repeat); } }
 
-    void Add(int cycle, string text, bool serious = false)
+    void Add(int cycle, string text, bool serious = false, bool quiet = false)
     {
         lock (gate)
         {
             var now = DateTime.UtcNow;
-            string key = System.Text.RegularExpressions.Regex.Replace(text, @"[d.,]+", "#");
-            bool repeat = lastSeen.TryGetValue(key, out var at) && now - at < RepeatWindow;
+            string key = System.Text.RegularExpressions.Regex.Replace(text, @"[\d.,]+", "#"); // numbers ignored: "1230 W" and "1110 W" are the same event
+            bool repeat = quiet || lastSeen.TryGetValue(key, out var at) && now - at < RepeatWindow;
             lastSeen[key] = now;
             events.Add((now, cycle, text, serious, repeat));
             if (events.Count > 200) events.RemoveRange(0, events.Count - 200);
@@ -96,7 +104,7 @@ public sealed class GameWatch
 
         foreach (var al in b.Alerts.Except(a.Alerts))
             Add(c, "game alert: " + al, al.StartsWith("Bad") || al.StartsWith("DuplicantThreatening"));
-        foreach (var al in a.Alerts.Except(b.Alerts)) Add(c, "alert cleared: " + al);
+        foreach (var al in a.Alerts.Except(b.Alerts)) Add(c, "alert cleared: " + al, quiet: true);
 
         foreach (var (dupe, probs) in b.DupeProblems)
         {
@@ -104,7 +112,7 @@ public sealed class GameWatch
             var got = probs.Except(old).ToList();
             var gone = old.Except(probs).ToList();
             if (got.Count > 0) Add(c, $"{dupe}: now {string.Join(", ", got)}", got.Any(Serious));
-            if (gone.Count > 0) Add(c, $"{dupe}: no longer {string.Join(", ", gone)}");
+            if (gone.Count > 0) Add(c, $"{dupe}: no longer {string.Join(", ", gone)}", quiet: true);
         }
         foreach (var dupe in a.DupeProblems.Keys.Except(b.DupeProblems.Keys)) Add(c, $"{dupe} is gone (died or left)", true);
         foreach (var dupe in b.DupeProblems.Keys.Except(a.DupeProblems.Keys)) Add(c, $"new duplicant: {dupe}");
@@ -112,15 +120,27 @@ public sealed class GameWatch
         foreach (var (name, count) in b.Buildings)
         {
             int was = a.Buildings.TryGetValue(name, out var w) ? w : 0;
-            if (count > was) Add(c, $"built: {count - was}x {name}");
-            else if (count < was) Add(c, $"removed: {was - count}x {name}");
+            if (count > was) { Add(c, $"built: {count - was}x {name}", quiet: true); lastBuilt[name] = DateTime.UtcNow; }
+            else if (count < was) Add(c, $"removed: {was - count}x {name}", quiet: true);
         }
-        foreach (var name in a.Buildings.Keys.Except(b.Buildings.Keys)) Add(c, $"removed: all {name}");
+        foreach (var name in a.Buildings.Keys.Except(b.Buildings.Keys)) Add(c, $"removed: all {name}", quiet: true);
 
-        foreach (var p in b.BuildingProblems.Except(a.BuildingProblems).Take(12)) Add(c, "building problem: " + p, Serious(p));
-        foreach (var p in a.BuildingProblems.Except(b.BuildingProblems).Take(12)) Add(c, "resolved: " + p);
+        var now = DateTime.UtcNow;
+        foreach (var p in b.BuildingProblems.Except(a.BuildingProblems).Take(12))
+        {
+            string name = p.Split(" @")[0];
+            bool fresh = lastBuilt.TryGetValue(name, out var builtAt) && now - builtAt < SettleTime;
+            if (fresh && !Serious(p)) { settling[p] = builtAt + SettleTime; Add(c, "building problem (just built, probably still being connected): " + p, quiet: true); }
+            else Add(c, "building problem: " + p, Serious(p));
+        }
+        foreach (var p in a.BuildingProblems.Except(b.BuildingProblems).Take(12)) { settling.Remove(p); Add(c, "resolved: " + p, quiet: true); }
+        foreach (var p in settling.Where(kv => now >= kv.Value).Select(kv => kv.Key).ToList())
+        {
+            settling.Remove(p);
+            if (b.BuildingProblems.Contains(p)) Add(c, "building problem (still there minutes after it was built): " + p);
+        }
 
-        if (b.Research != a.Research) Add(c, $"research now: {(b.Research.Length > 0 ? b.Research : "nothing selected")}");
+        if (b.Research != a.Research) Add(c, $"research now: {(b.Research.Length > 0 ? b.Research : "nothing selected")}", quiet: b.Research.Length > 0);
         if (b.Batteries != a.Batteries && b.Batteries.Contains("draining") && !a.Batteries.Contains("draining")) Add(c, "batteries started draining: " + b.Batteries);
         if (a.Joules > 1000 && b.Joules < 1) Add(c, "batteries are empty", true);
 

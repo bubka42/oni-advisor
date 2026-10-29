@@ -49,7 +49,9 @@ namespace OniAdvisor
             if (Time.unscaledTime >= closeAt || Briefing.IsOpen || AdvisorPanel.IsOpen) Close();
         }
 
-        static void Close()
+        public static bool IsOpen => card != null && card.gameObject.activeSelf;
+
+        public static void Close()
         {
             closeAt = -1f;
             if (card != null) card.gameObject.SetActive(false);
@@ -81,7 +83,7 @@ namespace OniAdvisor
             title = OniStyle.Label(tr, "", 20, header: true, color: Color.white, align: TextAlignmentOptions.MidlineLeft, wrap: false);
             title.richText = true;
             Link(bar, "REPLY", () => { Close(); if (chatEntry > 0) AdvisorPanel.OpenThread(chatEntry.ToString()); else AdvisorPanel.Open(); });
-            Link(bar, "CLOSE", Close);
+            Link(bar, "CLOSE", () => { Close(); AdvisorRunner.WriteRequest("hush", null); }); // closing it also stops it being read out
 
             // Body: as the caption's.
             var bodyRt = OniStyle.Rect("body", card);
