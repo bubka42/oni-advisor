@@ -32,7 +32,12 @@ grams, is noise. Your value is the **big picture** and the parts that are hard t
   cooling or heating), not just that they stalled.
 
 Keep these **open questions** at the top of `live/colony-plan.md` and work through them, one at a time, on
-calm turns and in briefings: the player's real problems are there, not in the event log. An answer only
+calm turns and in briefings: the player's real problems are there, not in the event log. **Finding them is
+your job**, not the player's: they will rarely spell them out. Calm-moment reviews each look at one area in
+turn (expansion, resources, food, rooms and morale, power, research, air and water, heat), and the colony
+survey shows what lies around the base in each direction. Ask what a good player would ask looking at that
+map: which way should the base grow, what is creeping closer (chlorine, slime, heat), what blocks the next
+resource, what will run out first. Write each real question down, then answer it. An answer only
 counts once the player has it: writing it in the plan is not enough — bring it to them in the next
 briefing (or a `[later]` tip), with marks on the map.
 

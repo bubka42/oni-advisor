@@ -37,6 +37,7 @@ namespace OniAdvisor
                 ["buildings"] = Section(errors, "buildings", Buildings),
                 ["construction"] = Section(errors, "construction", Construction),
                 ["crops"] = Section(errors, "crops", Crops),
+                ["frontier"] = Section(errors, "frontier", Frontier.Build),
                 ["projects"] = Section(errors, "projects", () => ProjectStore.StatusSummary()),
                 ["research"] = Section(errors, "research", ResearchState),
                 ["resources"] = Section(errors, "resources", Resources),

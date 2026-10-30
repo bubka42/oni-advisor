@@ -155,6 +155,9 @@ public static class ColonyDigest
                     if (safe > 0 && need > safe)
                         lines.Add($"Wiring: circuit {Num(c, "id")} could draw {need:0} W with everything on, but its weakest wire carries {safe:0} W: a design limit (split it, heavier wire, transformers), not a one-off fault.");
                 }
+            if (r.TryGetProperty("frontier", out var fr) && fr.ValueKind == JsonValueKind.Object)
+                lines.Add($"Around the base ({Str(fr, "base")}; within 25 tiles, revealed tiles as last seen):" + string.Concat(
+                    new[] { "above", "below", "left", "right" }.Where(d => Str(fr, d).Length > 0).Select(d => $"\n    {d}: {Str(fr, d)}")));
             return lines.Count == 0 ? "" : "Colony survey:\n- " + string.Join("\n- ", lines);
         }
         catch { return ""; }

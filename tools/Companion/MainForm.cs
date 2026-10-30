@@ -499,6 +499,21 @@ public sealed class MainForm : Form
 
     DateTime lastPlayerUtc = DateTime.MinValue, lastProactiveUtc = DateTime.MinValue, lastReviewUtc = DateTime.UtcNow;
     bool autosavePending;
+
+    // Each calm-moment review looks hard at one area, in turn, so no area goes unexamined just because
+    // nothing in it raised an alarm. (Starts at a random area each run.)
+    static readonly string[] ReviewFocus =
+    {
+        "Expansion: which neighbouring area to grow into next (the 'Around the base' lines), what it offers, its hazards and how to seal, cross or use them, and a first project for idle duplicants.",
+        "Resources: where the next metal, coal and other materials come from, and the route to reach each safely.",
+        "Food for the next 20 cycles and more duplicants: which farms, where, with what; any stalled crops and the lasting fix.",
+        "Rooms and morale: which rooms the game should recognise and doesn't, decor, who is short of morale and why.",
+        "Power: will generation, storage and wiring carry the next 20 cycles; fuel for each generator; the grid's design.",
+        "Research and buildings: what to research next, and which researched-but-unbuilt buildings to build now and why.",
+        "Air and water: do oxygen and water hold for 20 more cycles and a few more duplicants; where polluted water and carbon dioxide go.",
+        "Heat: farms, bedrooms and machines that are too hot or too cold, and anything warming up over the cycles.",
+    };
+    int reviewFocus = Random.Shared.Next(ReviewFocus.Length);
     string currentActivity = "";
 
     void HookAdvisorEvents()
@@ -1001,6 +1016,7 @@ public sealed class MainForm : Form
                 break;
             case "review":
                 if (ColonyDigest.Survey(liveDir) is { Length: > 0 } reviewSurvey) sb.AppendLine(reviewSurvey);
+                sb.AppendLine("This review's focus (areas take turns): " + ReviewFocus[reviewFocus++ % ReviewFocus.Length] + " Look at it properly on the map, even if nothing in it has raised an alarm. If it turns up a real question the colony faces, add it to the open questions in live/colony-plan.md (or answer it now, and tell the player).");
                 sb.AppendLine("Nothing was asked and nothing urgent is going on: time to work on the big picture (CLAUDE.md, \"What you are for\" and \"Long-term planning\"). Start with anything in the colony survey above that the player hasn't been told; then take the most pressing of the open questions in live/colony-plan.md (where to get the next resource and how to reach it past the hazards, food for the coming 20 cycles, base layout and rooms, which researched buildings to build next, ...; add questions the colony now faces) and answer it properly: explore the map memory (MapQuery find, region terrain/gas around the route), work out the where and the how, draw it (marks, a drafted project) and give the player a short [later] tip or a briefing. Also review live/colony-plan.md and the projects (live/quests.json, live/quests-state.json; CLAUDE.md, \"Projects\") against the colony as it is now: update the plan, propose a project when the player has no good next one, scrap proposals that no longer fit, flag milestones that look done, and give advice on ongoing or stalled projects where it matters. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
                 break;
         }
