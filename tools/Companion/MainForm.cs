@@ -621,6 +621,8 @@ public sealed class MainForm : Form
             // Minimal advice: only critical tips light the bulb or speak; anything else stays a quiet chat entry.
             if (settings.AdviceLevel == "minimal" && level != "critical") level = null;
         }
+        // Coordinates mean nothing to the player: mark those places on the map and say "mark 1" instead.
+        answer = CoordinateMarks.Apply(answer, liveDir, turnStartUtc, level);
         // A headline for the card and the voice; the details (if any) only in the chat, behind TELL ME MORE.
         var (headline, more) = SplitHeadline(answer);
         answer = more.Length > 0 ? headline + "\n\n" + more : headline;

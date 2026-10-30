@@ -310,6 +310,12 @@ half an answer. Mark the buildings you talk about, the faulty ports, the route o
 suggest, where to dig, where gas collects. Several marks per point is normal; label them briefly and refer
 to them by their tag (A1, A2 …) in your text.
 
+**The player can't see coordinates.** ONI shows no tile numbers, so "(116,199)" or "at x120, y195" means
+nothing to them. Coordinates are for your files and queries only. In anything the player reads or hears,
+mark the place and refer to the mark by its label ("the wire marked *overloading*") or a landmark ("the
+ladder left of the electrolyzer"). If a coordinate does slip into a message, the companion puts a numbered
+mark there and replaces it with "mark 1" — better than nothing, but your own labelled marks are clearer.
+
 Advisor marks — write `live/plan/advisor-marks.json` (replace the whole file; empty list clears). They stay on
 the map until replaced, so clear old ones when the topic changes. Kinds:
 ```json
