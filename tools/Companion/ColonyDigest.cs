@@ -100,6 +100,63 @@ public static class ColonyDigest
         catch (Exception e) { return "(no colony summary available: " + e.Message + ")"; }
     }
 
+    /// <summary>
+    /// The colony survey for cycle briefings and plan reviews: the questions that tracking events and projects
+    /// never asks - are there real rooms, who is idle, is research running, can the wiring carry the load, what
+    /// is researched but never built. Short lines with a verdict each, so the gaps stand out.
+    /// </summary>
+    public static string Survey(string liveDir)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(liveDir, "state.json")));
+            var r = doc.RootElement;
+            var lines = new List<string>();
+
+            if (r.TryGetProperty("rooms", out var rooms) && rooms.ValueKind == JsonValueKind.Array)
+            {
+                var types = rooms.EnumerateArray().Select(x => Str(x, "type")).ToList();
+                var real = types.Where(t => t != "Miscellaneous Room").GroupBy(t => t).Select(g => g.Count() > 1 ? $"{g.Count()}x {g.Key}" : g.Key).ToList();
+                var missing = new[] { ("Barracks", new[] { "Barracks", "Bedroom", "Luxury Barracks", "Private Bedroom" }),
+                                      ("Washroom or Latrine", new[] { "Washroom", "Latrine" }),
+                                      ("Mess Hall", new[] { "Mess Hall", "Great Hall", "Banquet Hall" }) }
+                    .Where(m => !types.Any(t => m.Item2.Contains(t))).Select(m => m.Item1).ToList();
+                lines.Add($"Rooms the game recognises: {(real.Count > 0 ? string.Join(", ", real) : "none")}." + (missing.Count > 0 ? $" Missing: {string.Join(", ", missing)} (no morale bonus from them)." : ""));
+            }
+            if (r.TryGetProperty("dupes", out var dupes) && dupes.ValueKind == JsonValueKind.Array)
+            {
+                var all = dupes.EnumerateArray().ToList();
+                var low = all.Where(d => d.TryGetProperty("morale", out var m) && d.TryGetProperty("moraleNeed", out var n) && m.ValueKind == JsonValueKind.Number && n.ValueKind == JsonValueKind.Number && m.GetDouble() < n.GetDouble()).Select(d => Str(d, "name")).ToList();
+                var pts = all.Where(d => d.TryGetProperty("skillPointsFree", out var p) && p.ValueKind == JsonValueKind.Number && p.GetInt32() > 0).Select(d => Str(d, "name")).ToList();
+                if (low.Count > 0) lines.Add($"Morale below need: {string.Join(", ", low)}.");
+                if (pts.Count > 0) lines.Add($"Unspent skill points: {string.Join(", ", pts)}.");
+                if (r.TryGetProperty("construction", out var con) && con.TryGetProperty("idleDupes", out var idle))
+                {
+                    int n = idle.GetArrayLength();
+                    if (n > 0) lines.Add($"Idle: {n} of {all.Count} duplicants{(n * 3 >= all.Count ? " — a lot of free labour for a project" : "")}.");
+                }
+            }
+            if (r.TryGetProperty("research", out var res))
+            {
+                string active = Str(res, "active");
+                int queued = res.TryGetProperty("queue", out var q) ? q.GetArrayLength() : 0;
+                lines.Add(active.Length == 0 && queued == 0 ? "Research: nothing selected (stations idle)." : $"Research: {(active.Length > 0 ? active : "?")}{(queued > 1 ? $", {queued} queued" : "")}.");
+                if (res.TryGetProperty("researchedNotBuilt", out var nb) && nb.GetArrayLength() > 0)
+                    lines.Add("Researched but none built (does any of these solve a current problem?): " + string.Join(", ", nb.EnumerateArray().Select(x => x.GetString()).Take(40)) + ".");
+            }
+            if (r.TryGetProperty("power", out var power) && power.ValueKind == JsonValueKind.Array)
+                foreach (var c in power.EnumerateArray())
+                {
+                    double need = c.TryGetProperty("wattsNeededWhenAllActive", out var w) && w.ValueKind == JsonValueKind.Number ? w.GetDouble() : 0;
+                    double safe = c.TryGetProperty("maxSafeWatts", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetDouble() : 0;
+                    if (safe > 0 && need > safe)
+                        lines.Add($"Wiring: circuit {Num(c, "id")} could draw {need:0} W with everything on, but its weakest wire carries {safe:0} W: a design limit (split it, heavier wire, transformers), not a one-off fault.");
+                }
+            return lines.Count == 0 ? "" : "Colony survey:\n- " + string.Join("\n- ", lines);
+        }
+        catch { return ""; }
+    }
+
     static string Str(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
     static string Num(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetRawText() : "?";
     static bool Bool(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;

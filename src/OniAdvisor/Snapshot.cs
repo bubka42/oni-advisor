@@ -372,10 +372,25 @@ namespace OniAdvisor
             var r = Research.Instance;
             var done = new JArray();
             var available = new JArray();
+            var unbuilt = new JArray();
+            var built = new HashSet<string>();
+            foreach (var b in Components.BuildingCompletes.Items)
+                if (b != null) built.Add(b.PrefabID().Name);
             foreach (var tech in Db.Get().Techs.resources)
             {
                 var ti = r.Get(tech);
-                if (ti != null && ti.IsComplete()) { done.Add(StripName(tech.Name)); continue; }
+                if (ti != null && ti.IsComplete())
+                {
+                    done.Add(StripName(tech.Name));
+                    // Researched buildings with none built anywhere: often the answer to a problem nobody connected.
+                    foreach (var id in tech.unlockedItemIDs)
+                    {
+                        var def = Assets.GetBuildingDef(id);
+                        if (def == null || !def.ShowInBuildMenu || built.Contains(id)) continue;
+                        unbuilt.Add($"{StripName(def.Name)} ({StripName(tech.Name)})");
+                    }
+                    continue;
+                }
                 if (tech.requiredTech.All(t => r.Get(t)?.IsComplete() == true)) available.Add(StripName(tech.Name));
             }
             var queue = new JArray();
@@ -395,6 +410,7 @@ namespace OniAdvisor
                 ["queue"] = queue,
                 ["available"] = available,
                 ["done"] = done,
+                ["researchedNotBuilt"] = unbuilt,
             };
         }
 
