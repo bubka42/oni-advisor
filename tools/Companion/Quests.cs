@@ -19,7 +19,7 @@ public sealed class Quests
         projectsFile = Path.Combine(liveDir, "projects", "projects.json");
     }
 
-    sealed record Quest(string Id, string Title, string Status, List<(string id, string text)> Milestones, HashSet<string> Done, string Kind, string? Project);
+    sealed record Quest(string Id, string Title, string Status, List<(string id, string text)> Milestones, HashSet<string> Done, string Kind, string? Project, int Unchecked);
 
     List<Quest> Read()
     {
@@ -40,7 +40,8 @@ public sealed class Quests
             foreach (var x in q?["milestones"]?.AsArray() ?? new JsonArray())
                 ms.Add(x is JsonValue v ? ($"m{++m}", (string?)v ?? "") : ((string?)x?["id"] ?? $"m{++m}", (string?)x?["text"] ?? ""));
             var done = new HashSet<string>(ms.Where(x => (bool?)s?["milestones"]?[x.Item1] == true).Select(x => x.Item1));
-            list.Add(new Quest(id, (string?)q?["title"] ?? id, status, ms, done, (string?)q?["kind"] ?? "infrastructure", (string?)q?["project"]));
+            int unchecked_ = (q?["milestones"]?.AsArray() ?? new JsonArray()).Count(x => x is not JsonObject o || o["check"] == null);
+            list.Add(new Quest(id, (string?)q?["title"] ?? id, status, ms, done, (string?)q?["kind"] ?? "infrastructure", (string?)q?["project"], unchecked_));
         }
         return list;
     }
@@ -61,6 +62,10 @@ public sealed class Quests
         var drafted = DraftedProjects();
         var missing = qs.Where(q => q.Kind != "colony" && q.Status is "proposed" or "accepted" && (q.Project == null || !drafted.Contains(q.Project)))
                         .Select(q => $"{q.Title} [{q.Id}]").ToList();
+        // Milestones tick themselves only with a check the game can measure: remind until each has one.
+        var noCheck = qs.Where(q => q.Status is "proposed" or "accepted" or "stalled" && q.Unchecked > 0).Select(q => $"{q.Title} [{q.Id}] ({q.Unchecked})").ToList();
+        if (noCheck.Count > 0)
+            line += $"\nMILESTONES WITHOUT A CHECK in: {string.Join("; ", noCheck)}. Rewrite them as actions the player does, each with a \"check\" the game measures (CLAUDE.md, \"Projects\"); keep reached ones.";
         if (missing.Count > 0)
             line += $"\nNO BLUEPRINT YET for: {string.Join("; ", missing)}. Draft one (the most useful first; one per turn is fine) in live/projects/projects.json and link it from the quest with \"project\", so the player sees its ghost.";
         return line;
@@ -105,8 +110,8 @@ public sealed class Quests
                 var wasDone = before.done ?? new HashSet<string>();
                 foreach (var (id, text) in q.Milestones)
                 {
-                    if (q.Done.Contains(id) && !wasDone.Contains(id)) lines.Add($"- the player ticked off \"{text}\" ({q.Title})");
-                    else if (!q.Done.Contains(id) && wasDone.Contains(id)) lines.Add($"- the player un-ticked \"{text}\" ({q.Title})");
+                    if (q.Done.Contains(id) && !wasDone.Contains(id)) lines.Add($"- milestone reached: \"{text}\" ({q.Title})");
+                    else if (!q.Done.Contains(id) && wasDone.Contains(id)) lines.Add($"- milestone reset: \"{text}\" ({q.Title})");
                 }
             }
         }

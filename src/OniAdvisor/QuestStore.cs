@@ -12,9 +12,12 @@ namespace OniAdvisor
     ///   live/quests.json        the advisor's: proposals and their content (title, kind, horizon, why,
     ///                           milestones, linked blueprint, advice), and "scrapped" for outdated proposals;
     ///   live/quests-state.json  the player's (written only here): accepted / declined / stalled / abandoned /
-    ///                           completed, with cycles, and which milestones are ticked.
+    ///                           completed, with cycles, and which milestones are reached (with the cycle).
     /// A quest's status is the player's if they have decided, else the advisor's ("proposed" / "scrapped").
-    /// Ticking the last milestone completes it.
+    /// Milestones tick themselves: each has a "check" the game can measure (MilestoneChecks: buildings built,
+    /// blueprint pieces, rooms, research, digging, storage), with partial progress shown; one without a check is
+    /// ticked when the advisor marks it "looksDone". Once reached, a milestone stays reached. Reaching the last one
+    /// completes the project. The player doesn't tick anything.
     /// UNTESTED IN GAME.
     /// </summary>
     internal static class QuestStore
@@ -23,6 +26,9 @@ namespace OniAdvisor
         {
             public string Id, Text;
             public bool Done, AdvisorThinksDone;
+            public JObject Check;          // what the game measures (MilestoneChecks); null = the advisor judges it
+            public float Fraction;         // partial progress 0..1, for display
+            public string ProgressText;    // "2/3 built", "40% dug" …
         }
 
         internal sealed class Quest
@@ -97,7 +103,7 @@ namespace OniAdvisor
                 {
                     var milestone = ms.Type == JTokenType.String
                         ? new Milestone { Id = $"m{++m}", Text = (string)ms }
-                        : new Milestone { Id = (string)ms["id"] ?? $"m{++m}", Text = (string)ms["text"] ?? "", AdvisorThinksDone = (bool?)ms["looksDone"] ?? false };
+                        : new Milestone { Id = (string)ms["id"] ?? $"m{++m}", Text = (string)ms["text"] ?? "", AdvisorThinksDone = (bool?)ms["looksDone"] ?? false, Check = ms["check"] as JObject };
                     quest.Milestones.Add(milestone);
                 }
                 quests.Add(quest);
@@ -129,25 +135,58 @@ namespace OniAdvisor
             Version++;
         }
 
-        public static void ToggleMilestone(Quest q, Milestone m)
+        // ------------------------------------------------------------------ milestones measure themselves
+
+        static float nextMeasure;
+
+        /// <summary>
+        /// Every few seconds: measure the open milestones of proposed, accepted and stalled projects. A milestone that
+        /// reaches its target (or that the advisor marked looksDone, when it has no check) is reached for good; the
+        /// last one completes the project. Progress text changes redraw the list.
+        /// </summary>
+        public static void Measure(float now)
         {
-            var s = Entry(q);
-            var ms = s["milestones"] as JObject ?? new JObject();
-            m.Done = !m.Done;
-            ms[m.Id] = m.Done;
-            s["milestones"] = ms;
-            if (q.Status == "proposed") { s["status"] = "accepted"; q.Status = "accepted"; } // working on it = taking it on
-            if (m.Done && q.Milestones.All(x => x.Done))
+            if (now < nextMeasure || quests.Count == 0) return;
+            nextMeasure = now + 3f;
+            bool redraw = false, save = false;
+            foreach (var q in quests)
             {
-                s["status"] = "completed";
-                s["completedCycle"] = Cycle();
-                q.Status = "completed";
-                AdvisorHud.Show($"PROJECT COMPLETE: {q.Title}", 6f);
+                if (q.Status != "proposed" && q.Status != "accepted" && q.Status != "stalled") continue;
+                foreach (var m in q.Milestones)
+                {
+                    if (m.Done) continue;
+                    var measured = MilestoneChecks.Measure(m.Check);
+                    string text = measured?.text;
+                    float frac = measured == null ? 0f : measured.Value.need <= 0 ? 1f : Math.Min(1f, measured.Value.have / measured.Value.need);
+                    if (text != m.ProgressText) { m.ProgressText = text; redraw = true; }
+                    m.Fraction = frac;
+                    bool reached = measured != null ? measured.Value.have >= measured.Value.need : m.AdvisorThinksDone;
+                    if (!reached) continue;
+                    m.Done = true;
+                    var s = Entry(q);
+                    var ms = s["milestones"] as JObject ?? new JObject();
+                    ms[m.Id] = true;
+                    s["milestones"] = ms;
+                    s[m.Id + "Cycle"] = Cycle();
+                    save = redraw = true;
+                    AdvisorHud.Show($"Milestone reached: {m.Text}", 4f);
+                }
+                if (q.Milestones.Count > 0 && q.Milestones.All(x => x.Done) && q.Status == "accepted")
+                {
+                    var s = Entry(q);
+                    s["status"] = "completed";
+                    s["completedCycle"] = Cycle();
+                    q.Status = "completed";
+                    save = redraw = true;
+                    AdvisorHud.Show($"PROJECT COMPLETE: {q.Title}", 6f);
+                }
             }
-            else if (!m.Done && q.Status == "completed") { s["status"] = "accepted"; q.Status = "accepted"; }
-            Save();
-            Version++;
+            if (save) Save();
+            if (redraw) Version++;
         }
+
+        /// <summary>A project's progress over its milestones, partial ones included (0..1).</summary>
+        public static float Progress(Quest q) => q.Milestones.Count == 0 ? 0f : q.Milestones.Sum(m => m.Done ? 1f : m.Fraction) / q.Milestones.Count;
 
         static JObject Entry(Quest q)
         {

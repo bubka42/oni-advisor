@@ -450,6 +450,16 @@ namespace OniAdvisor
         /// <summary>How many pieces a project has (briefings reveal them one by one).</summary>
         public static int ItemCount(string id) => Find(id)?.Items.Count ?? 0;
 
+        /// <summary>A project's pieces built so far, of how many (optionally only pieces with these numbers, 1-based as in
+        /// "h2.3"); null if the project doesn't exist.</summary>
+        public static (int built, int of)? BuiltCount(string id, ICollection<int> numbers = null)
+        {
+            var p = Find(id);
+            if (p == null) return null;
+            var items = numbers == null || numbers.Count == 0 ? p.Items : p.Items.Where((it, i) => numbers.Contains(i + 1)).ToList();
+            return (items.Count(i => i.Status == "built"), items.Count);
+        }
+
         /// <summary>
         /// Places build orders for a whole project where it was planned: buildings, pipes, wires, rails and
         /// automation (with their connections), dig orders for what is in the way; the rest waits until it fits.

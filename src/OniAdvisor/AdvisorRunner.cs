@@ -100,6 +100,7 @@ namespace OniAdvisor
                 Guard("guided planning", GuidedPlan.Poll);
                 Guard("pins poll", Pins.Poll);
                 Guard("quests", QuestStore.Poll);
+                Guard("milestones", () => QuestStore.Measure(Time.unscaledTime));
                 Guard("commands", Commands.Poll);
                 Guard("advisor status", AdvisorHud.PollStatus);
                 Guard("briefing poll", Briefing.Poll);

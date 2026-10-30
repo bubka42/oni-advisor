@@ -254,21 +254,37 @@ One line: where this colony is heading next (e.g. "Closed oxygen + food loop, th
 
 ## Projects (quests): the player's direction
 
-You propose projects; the player takes them on like quests and ticks off their milestones. They show as
-a PROJECTS list on the left of the screen (ongoing, proposed, on hold, done). Write `live/quests.json`
-(whole file; keep every project that still exists, whatever its state):
+You propose projects; the player takes them on like quests, and their milestones tick themselves as the
+game sees the work done. They show as a PROJECTS list (ongoing, proposed, on hold, done), each milestone's
+box filling with its progress. Write `live/quests.json` (whole file; keep every project that still exists,
+whatever its state):
 ```json
 { "quests": [
   { "id": "water-loop", "title": "Close the water loop", "kind": "infrastructure", "horizon": "long",
     "why": "Showers and toilets turn 600 kg of water a cycle into polluted water; recycle it instead of draining the reservoir.",
-    "milestones": [ { "id": "m1", "text": "Polluted water drains into a sealed reservoir" },
-                    { "id": "m2", "text": "A water sieve cleans it, powered and supplied with sand" },
-                    { "id": "m3", "text": "Clean water feeds back to the bathrooms", "looksDone": false } ],
+    "milestones": [ { "id": "m1", "text": "Build the polluted water reservoir", "check": { "project": "sieve", "items": [1] } },
+                    { "id": "m2", "text": "Build the water sieve and its pipes", "check": { "project": "sieve", "items": [2, 3, 4] } },
+                    { "id": "m3", "text": "Research Sanitation for showers", "check": { "research": "Sanitation" } } ],
     "project": "sieve", "advice": null, "status": "proposed" },
-  { "id": "six-dupes", "title": "Six dupes, comfortably housed", "kind": "colony", "horizon": "short",
-    "why": "The next Printing Pod pick is due; make room before you print.",
-    "milestones": ["Six beds in barracks", "Food for six for five cycles", "Oxygen output covers six"] } ] }
+  { "id": "rooms", "title": "Real rooms for morale", "kind": "colony", "horizon": "short",
+    "why": "The game sees one big miscellaneous room, so nobody gets room morale bonuses.",
+    "milestones": [ { "id": "m1", "text": "Wall the cot row into two barracks", "check": { "room": "Barracks", "count": 2 } },
+                    { "id": "m2", "text": "Close off the toilets as a washroom", "check": { "room": "Washroom" } },
+                    { "id": "m3", "text": "Enclose the mess tables as a mess hall", "check": { "room": "Mess Hall" } } ] } ] }
 ```
+- **Milestones are things the player does**, each with a `check` the game measures, so it ticks itself and
+  shows partial progress ("2/3 built", "40% dug"). Never a state that unrelated events can spoil ("a cycle
+  with nobody suffocating" fails when someone suffocates on an errand elsewhere): say the action that
+  brings it about instead ("Build the second vent over the cots"). Checks:
+  - `{"build": "Gas Pump", "count": 2, "area": [x0,y0,x1,y1]}` finished buildings by name (area optional)
+  - `{"project": "h2", "items": [1, 2]}` blueprint pieces built (items as in `h2.1`; omit for all)
+  - `{"room": "Barracks", "count": 2}` rooms the game recognises
+  - `{"research": "Smelting"}` a finished tech
+  - `{"dig": [x0,y0,x1,y1]}` natural tiles dug out in that area
+  - `{"stored": "Copper Ore", "kg": 2000}` in storage, colony-wide
+
+  Only if no check fits, leave it out: then set `"looksDone": true` once you've confirmed it, and the game
+  ticks it. A reached milestone stays reached; the last one completes the project.
 - **Every proposal comes with a pitch**: `"pitch": {"steps": [...]}`, the same steps as a briefing (`say`,
   `text`, `focus`, `zoom`, `marks` with `at`, `project` with `projectAt`, `spotlight`), narrated by the
   briefing player when the player presses PITCH. 3–5 steps: what the project is and the problem it solves
@@ -284,21 +300,19 @@ a PROJECTS list on the left of the screen (ongoing, proposed, on hold, done). Wr
   STAMP or PLACE it. Check projects-status.json and fix anything blocked first. Only if the place truly
   depends on the player's choice, say so in the pitch, mark the candidate spots, and draft it once chosen.
 - **The player decides; you never do.** Their choices are in `live/quests-state.json` (written by the game):
-  accepted, declined, stalled (on hold), abandoned, completed, and which milestones they ticked. Never write
-  that file and never mark a milestone done yourself; set `"looksDone": true` on a milestone you have
-  checked is done, and the game suggests ticking it. Changes arrive in your next message ("the player
-  ACCEPTED …", "ticked off …").
+  accepted, declined, stalled (on hold), abandoned, completed, and which milestones are reached. Never write
+  that file. Changes arrive in your next message ("the player ACCEPTED …", "milestone reached: …").
 - **Kinds**: mostly `infrastructure` (a water loop, renewable oxygen, a power plant, a farm with its
   irrigation, a cooling loop), sometimes `colony` (population with the facilities to match, a room bonus,
   reaching a new biome). `horizon`: `short` (a cycle or two) or `long` (many cycles).
-- **Milestones**: 3–7, concrete and checkable by looking at the colony ("A water sieve cleans it, powered
-  and supplied with sand", not "improve water"), in the order they get built. Link a blueprint with
-  `"project"` (an id in `projects.json`) when there is a layout to place.
+- **Milestones**: 3–7 actions in the order they get done, each with a check (above). Link a blueprint with
+  `"project"` (an id in `projects.json`) when there is a layout to place; blueprint pieces make the best
+  checks.
 - **How many**: two to four proposals at a time, a mix of short and long, the most useful first. Don't
   re-propose what the player declined unless the situation changed (and say what changed).
 - **Housekeeping**: set `"status": "scrapped"` on proposals that no longer fit (the game hides them; it
-  cannot scrap what the player accepted). Keep ids stable; edit a project's milestones only if the
-  player hasn't ticked them, and keep ticked ones as they are.
+  cannot scrap what the player accepted). Keep ids stable; edit or add milestones freely, but keep reached
+  ones as they are (same id and text).
 - **Advice**: `"advice"` is one sentence shown on the project ("Hold this until you have refined metal",
   "Take this on next: algae runs out in 4 cycles"). Use it for accept / hold / abandon advice; clear it
   when it no longer applies.

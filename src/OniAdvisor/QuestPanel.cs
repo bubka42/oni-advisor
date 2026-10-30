@@ -9,8 +9,8 @@ namespace OniAdvisor
     /// <summary>
     /// The PROJECTS button next to the ADVISOR button, and the list it opens on the left of the screen (on top of
     /// the game's notifications, which is why it stays closed until asked for): collapsible sections ONGOING, PROPOSED, ON HOLD and
-    /// DONE; each project folds open to its reason, the advisor's advice, its milestones (click a box to tick
-    /// it) and its buttons (accept / decline, hold / abandon / resume, its blueprint, DISCUSS). Every project
+    /// DONE; each project folds open to its reason, the advisor's advice, its milestones (each box fills with its
+    /// progress and ticks itself) and its buttons (accept / decline, hold / abandon / resume, its blueprint, DISCUSS). Every project
     /// and milestone has its own thread in the advisor panel ("quest:ID", "quest:ID:MILESTONE").
     /// The list closes with Esc or the button; it steps aside while the game's build menu or a building's details
     /// are open (same side of the screen). Both hide during briefings and planning mode, and with nothing to show.
@@ -95,7 +95,7 @@ namespace OniAdvisor
             bool open = openQuests.Contains(q.Id);
             string tag = q.Horizon == "long" ? "LONG" : "SHORT";
             string kind = q.Kind == "colony" ? " · COLONY" : "";
-            string progress = q.Milestones.Count > 0 ? $"  {q.DoneCount}/{q.Milestones.Count}" : "";
+            string progress = q.Milestones.Count > 0 ? $"  {Mathf.RoundToInt(QuestStore.Progress(q) * 100)}%" : "";
             string advice = !string.IsNullOrEmpty(q.Advice) ? "  <color=#FFD86B>•</color>" : "";
             Clickable(block, $"{(open ? "-" : "+")} <b>{Esc(q.Title)}</b>{advice}  <size=14><color=#D2D4EB>{tag}{kind}{progress}</color></size>", 18, false, OniStyle.Text,
                 () => { if (!openQuests.Remove(q.Id)) openQuests.Add(q.Id); Dirty(); });
@@ -132,10 +132,15 @@ namespace OniAdvisor
             var row = Row(parent);
             var box = OniStyle.Rect("check", row);
             var le = box.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = 22; le.preferredHeight = 22;
-            var img = OniStyle.Fill(box, m.Done ? OniStyle.Header : OniStyle.Button, true);
-            var b = box.gameObject.AddComponent<Button>();
-            b.targetGraphic = img;
-            b.onClick.AddListener(() => QuestStore.ToggleMilestone(q, m));
+            // The box fills up with the milestone's progress (it ticks itself; nothing to click).
+            OniStyle.Fill(box, OniStyle.Button, false);
+            if (m.Done || m.Fraction > 0f)
+            {
+                var fill = OniStyle.Rect("fill", box);
+                fill.anchorMin = Vector2.zero; fill.anchorMax = new Vector2(1f, m.Done ? 1f : Mathf.Clamp01(m.Fraction));
+                fill.offsetMin = fill.offsetMax = Vector2.zero;
+                OniStyle.Fill(fill, OniStyle.Header, false);
+            }
             if (m.Done)
             {
                 var tick = OniStyle.Rect("tick", box);
@@ -144,7 +149,9 @@ namespace OniAdvisor
             }
             var tr = OniStyle.Rect("text", row);
             tr.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-            string hint = !m.Done && m.AdvisorThinksDone ? "  <size=14><color=#9FE08C>(looks done: tick it?)</color></size>" : "";
+            string hint = m.Done ? ""
+                : m.ProgressText != null ? $"  <size=14><color=#D2D4EB>{Esc(m.ProgressText)}</color></size>"
+                : m.Check == null ? "  <size=14><color=#D2D4EB>(the advisor ticks this)</color></size>" : "";
             var t = OniStyle.Label(tr, (m.Done ? "<s>" + Esc(m.Text) + "</s>" : Esc(m.Text)) + hint, 17, color: m.Done ? OniStyle.TextMuted : OniStyle.Text);
             t.richText = true;
             Small(row, "…", () => AdvisorPanel.OpenThread($"quest:{q.Id}:{m.Id}"), 26); // the milestone's own thread
