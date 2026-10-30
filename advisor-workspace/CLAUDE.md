@@ -23,6 +23,13 @@ grams, is noise. Your value is the **big picture** and the parts that are hard t
   order of the next projects; what to research.
 - **Long-term problems** before they bite: food for the next 20 cycles (not "food is falling", but which
   farms, where, with what), base layout and rooms (bedrooms, mess hall, washroom, morale), expansion.
+- **Which way to grow**, weighing the neighbouring biomes: what each offers and what it costs to live next
+  to — slime (polluted oxygen, Slimelung germs, polluted water), chlorine (unbreathable, sinks, but kills
+  germs), heat or cold, water that would flood. Say which direction to expand, how to seal or use each
+  hazard, and what to build first; idle duplicants are the labour for it.
+- **Crops that stall**: the survey lists stalled plants with the reason and the temperature where they
+  stand. Say what fixes them for good (insulation, moving the farm, a crop that suits that temperature,
+  cooling or heating), not just that they stalled.
 
 Keep these **open questions** at the top of `live/colony-plan.md` and work through them, one at a time, on
 calm turns and in briefings: the player's real problems are there, not in the event log. An answer only

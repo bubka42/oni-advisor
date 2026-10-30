@@ -136,6 +136,9 @@ public static class ColonyDigest
                     if (n > 0) lines.Add($"Idle: {n} of {all.Count} duplicants{(n * 3 >= all.Count ? " — a lot of free labour for a project" : "")}.");
                 }
             }
+            if (r.TryGetProperty("crops", out var crops) && crops.ValueKind == JsonValueKind.Object
+                && crops.TryGetProperty("stalled", out var stalled) && stalled.GetArrayLength() > 0)
+                lines.Add($"Crops: {Num(crops, "planted")} planted, only {Num(crops, "growing")} growing. Stalled: " + string.Join("; ", stalled.EnumerateArray().Select(x => x.GetString()).Take(5)) + ".");
             if (r.TryGetProperty("research", out var res))
             {
                 string active = Str(res, "active");

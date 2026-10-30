@@ -36,6 +36,7 @@ namespace OniAdvisor
                 ["alerts"] = Section(errors, "alerts", Alerts),
                 ["buildings"] = Section(errors, "buildings", Buildings),
                 ["construction"] = Section(errors, "construction", Construction),
+                ["crops"] = Section(errors, "crops", Crops),
                 ["projects"] = Section(errors, "projects", () => ProjectStore.StatusSummary()),
                 ["research"] = Section(errors, "research", ResearchState),
                 ["resources"] = Section(errors, "resources", Resources),
@@ -363,6 +364,38 @@ namespace OniAdvisor
                 ["sites"] = stuck,
                 ["idleDupes"] = idle,
             };
+        }
+
+        // ---------------------------------------------------------------- crops
+
+        /// <summary>
+        /// Planted crops: how many grow, and the stalled ones grouped by plant and reason (too cold, too hot,
+        /// wrong atmosphere, no fertilizer or water …) with the temperature where they stand and a few places.
+        /// </summary>
+        static JToken Crops()
+        {
+            int total = 0, growing = 0;
+            var groups = new Dictionary<string, (int count, float minT, float maxT, List<string> where)>();
+            foreach (var crop in Components.Crops.Items)
+            {
+                if (crop == null) continue;
+                total++;
+                var wilt = crop.GetComponent<WiltCondition>();
+                var problems = Statuses(crop.gameObject, problemsOnly: true);
+                if ((wilt == null || !wilt.IsWilting()) && problems.Count == 0) { growing++; continue; }
+                int cell = Grid.PosToCell(crop);
+                float t = Grid.IsValidCell(cell) ? Grid.Temperature[cell] - 273.15f : float.NaN;
+                string key = $"{StripName(crop.GetProperName())}: {(problems.Count > 0 ? string.Join("; ", problems.Select(p => ((string)p).TrimStart('!'))) : "wilting")}";
+                if (!groups.TryGetValue(key, out var g)) g = (0, float.MaxValue, float.MinValue, new List<string>());
+                g.count++;
+                g.minT = Math.Min(g.minT, t); g.maxT = Math.Max(g.maxT, t);
+                if (g.where.Count < 6) g.where.Add((string)Pos(cell));
+                groups[key] = g;
+            }
+            var stalled = new JArray();
+            foreach (var kv in groups.OrderByDescending(kv => kv.Value.count))
+                stalled.Add($"{kv.Value.count}x {kv.Key} ({R(kv.Value.minT, 0)}–{R(kv.Value.maxT, 0)} °C) @ {string.Join(" ", kv.Value.where)}");
+            return new JObject { ["planted"] = total, ["growing"] = growing, ["stalled"] = stalled };
         }
 
         // ---------------------------------------------------------------- research
