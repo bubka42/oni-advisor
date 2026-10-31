@@ -97,8 +97,14 @@ namespace OniAdvisor
             string kind = q.Kind == "colony" ? " · COLONY" : "";
             string progress = q.Milestones.Count > 0 ? $"  {Mathf.RoundToInt(QuestStore.Progress(q) * 100)}%" : "";
             string advice = !string.IsNullOrEmpty(q.Advice) ? "  <color=#FFD86B>•</color>" : "";
-            Clickable(block, $"{(open ? "-" : "+")} <b>{Esc(q.Title)}</b>{advice}  <size=14><color=#D2D4EB>{tag}{kind}{progress}</color></size>", 18, false, OniStyle.Text,
+            // The checkbox shows this project on the map: its pitch marks and its blueprint ghost.
+            var head = Row(block);
+            string key = "quest:" + q.Id;
+            bool onMap = MarkSets.IsShown(key) || ProjectStore.IsShown(q.Project);
+            OniStyle.CheckBox(head, onMap, () => { MarkSets.Set(key, !onMap); Dirty(); });
+            var title = Clickable(head, $"{(open ? "-" : "+")} <b>{Esc(q.Title)}</b>{advice}  <size=14><color=#D2D4EB>{tag}{kind}{progress}</color></size>", 18, false, OniStyle.Text,
                 () => { if (!openQuests.Remove(q.Id)) openQuests.Add(q.Id); Dirty(); });
+            title.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
             if (!open) return;
 
             if (!string.IsNullOrEmpty(q.Why)) Text(block, Esc(q.Why), 16, OniStyle.TextMuted);
@@ -163,7 +169,7 @@ namespace OniAdvisor
 
         static string Esc(string s) => (s ?? "").Replace("<", "‹");
 
-        static void Clickable(RectTransform parent, string text, float size, bool header, Color color, UnityEngine.Events.UnityAction onClick)
+        static RectTransform Clickable(RectTransform parent, string text, float size, bool header, Color color, UnityEngine.Events.UnityAction onClick)
         {
             var rt = OniStyle.Rect("clickable", parent);
             var img = OniStyle.Fill(rt, new Color(0, 0, 0, 0.001f), true);
@@ -176,6 +182,7 @@ namespace OniAdvisor
             var lt = OniStyle.Rect("label", rt);
             var t = OniStyle.Label(lt, text, size, header: header, color: color, align: TextAlignmentOptions.MidlineLeft);
             t.richText = true;
+            return rt;
         }
 
         static void Text(RectTransform parent, string text, float size, Color color)

@@ -180,6 +180,8 @@ namespace OniAdvisor
                     i++;
                     Advisor.Add(mark);
                 }
+                latestHidden = false; // new marks are meant to be seen
+                advisorLayer.Visible = Overlays.ShowMarks;
                 Redraw(revealAdvisor: true);
                 Log.Info($"advisor marks loaded: {Advisor.Count}");
                 // New marks are meant to be seen: show them even if the overlay was off.
@@ -195,7 +197,8 @@ namespace OniAdvisor
         public static void SetVisible(bool visible)
         {
             playerLayer.Visible = visible;
-            advisorLayer.Visible = visible;
+            advisorLayer.Visible = visible && !latestHidden;
+            MarkSets.SetVisible(visible);
         }
 
         public static void Preview(string kind, int x0, int y0, int x1, int y1)
@@ -246,13 +249,40 @@ namespace OniAdvisor
 
         /// <summary>Draws marks in the advisor's style (cyan unless a mark has its own colour) onto a layer.</summary>
         /// <summary>One mark in the advisor's style, sketched on now (briefings draw each as the narration reaches it).</summary>
-        public static void DrawAdvisorMark(MarkRenderer r, Mark m, int id)
+        public static void DrawAdvisorMark(MarkRenderer r, Mark m, int id, System.Action onLabelClick = null)
         {
             if (m.Id == 0) m.Id = id;
             m.By = "advisor";
             r.BeginReveal();
             var line = ParseColor(m.Color, ToneColor(m.Tone));
-            Draw(r, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true);
+            Draw(r, m, new Color(line.r, line.g, line.b, 0.2f), line, showLabel: true, onClick: onLabelClick);
+        }
+
+        // ------------------------------------------------------------------ the newest message's marks, on or off
+
+        static bool latestHidden;
+
+        /// <summary>The chat entry whose message drew the current advisor marks (the companion records it), or 0.</summary>
+        public static long LatestSource
+        {
+            get
+            {
+                try
+                {
+                    var src = Path.Combine(Paths.Sub("plan"), "advisor-marks-source.json");
+                    return File.Exists(src) ? (long?)JObject.Parse(File.ReadAllText(src))["chat"] ?? 0 : 0;
+                }
+                catch { return 0; }
+            }
+        }
+
+        public static bool LatestShown => !latestHidden && Advisor.Count > 0;
+
+        /// <summary>The player's checkbox for the newest message's marks (new marks from the advisor show again by themselves).</summary>
+        public static void SetLatestShown(bool shown)
+        {
+            latestHidden = !shown;
+            advisorLayer.Visible = shown && Overlays.ShowMarks;
         }
 
         public static void DrawAdvisorStyle(MarkRenderer r, IEnumerable<Mark> marks)

@@ -74,7 +74,7 @@ namespace OniAdvisor
                         if (after > before) AdvisorHud.Show($"The advisor proposes {after - before} new project(s): open one under PROJECTS on the left and press PITCH to hear it", 5f);
                     }
                 }
-                if (changed) { Apply(); Version++; }
+                if (changed) { Apply(); Version++; MarkSets.Refresh(); } // ticked projects' pitch marks may have changed
             }
             catch (Exception e) { Log.Warn("quests poll: " + e.Message); }
         }

@@ -345,8 +345,11 @@ their milestones — mark the place and refer to the mark by its label ("the wir
 ladder left of the electrolyzer"). If a coordinate does slip into a message, the companion puts a numbered
 mark there and replaces it with "mark 1" — better than nothing, but your own labelled marks are clearer.
 
-Advisor marks — write `live/plan/advisor-marks.json` (replace the whole file; empty list clears). They stay on
-the map until replaced, so clear old ones when the topic changes. Kinds:
+Advisor marks — write `live/plan/advisor-marks.json` (replace the whole file; empty list clears). They belong
+to the message you write with them: they show until your next marks replace them, and the game keeps a copy
+per message that the player can switch back on (MARKS under it in the chat). Marks about a briefing go in its
+steps and marks about a project in its pitch: the player ticks a briefing or a project to see its marks (and
+the project's blueprint) again, so they never hang around without their context. Kinds:
 ```json
 { "marks": [
   { "kind": "outline", "x0": 122, "y0": 205, "tone": "problem", "label": "generator: no hydrogen" },

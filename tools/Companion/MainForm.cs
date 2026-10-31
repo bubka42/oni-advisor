@@ -839,6 +839,10 @@ public sealed class MainForm : Form
         {
             var marks = Path.Combine(liveDir, "plan", "advisor-marks.json");
             if (!File.Exists(marks) || File.GetLastWriteTimeUtc(marks) < turnStartUtc) return;
+            // A copy per message, so the player can show any message's marks again later (MARKS under it in the chat).
+            var sets = Path.Combine(liveDir, "plan", "sets");
+            Directory.CreateDirectory(sets);
+            File.Copy(marks, Path.Combine(sets, $"msg-{chatEntry}.json"), overwrite: true);
             var src = Path.Combine(liveDir, "plan", "advisor-marks-source.json");
             File.WriteAllText(src + ".tmp", JsonSerializer.Serialize(new { chat = chatEntry, utc = DateTime.UtcNow.ToString("o") }));
             File.Move(src + ".tmp", src, overwrite: true);

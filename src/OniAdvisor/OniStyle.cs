@@ -103,6 +103,25 @@ namespace OniAdvisor
             return b;
         }
 
+        /// <summary>A small square checkbox (for "show these marks on the map"): filled pink when on.</summary>
+        public static Button CheckBox(Transform parent, bool on, UnityAction onClick, float size = 22)
+        {
+            var rt = Rect("checkbox", parent);
+            var le = rt.gameObject.AddComponent<LayoutElement>();
+            le.preferredWidth = le.minWidth = size; le.preferredHeight = le.minHeight = size;
+            var img = Fill(rt, Button, true);
+            var b = rt.gameObject.AddComponent<Button>();
+            b.targetGraphic = img;
+            b.onClick.AddListener(onClick);
+            if (on)
+            {
+                var dot = Rect("on", rt);
+                Stretch(dot, 4, 4);
+                Fill(dot, Header, false);
+            }
+            return b;
+        }
+
         public static void Stretch(RectTransform rt, float padX = 0, float padY = 0)
         {
             rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;

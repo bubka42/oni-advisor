@@ -280,12 +280,19 @@ namespace OniAdvisor
                     break;
             }
 
-            // Buttons under a message: open its briefing, open its thread.
-            if ((canThread && threadable) || briefing != null)
+            // Buttons under a message: its marks on the map, open its briefing, open its thread.
+            long n = (long?)e["n"] ?? 0;
+            string marksKey = briefing != null ? "brief:" + briefing : MarkSets.HasMessageSet(n) ? "msg:" + n : null;
+            if ((canThread && threadable) || briefing != null || marksKey != null)
             {
                 var bar = OniStyle.Rect("actions", row);
                 var hl = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
                 hl.spacing = 6; hl.childAlignment = TextAnchor.MiddleLeft; hl.childControlWidth = true; hl.childControlHeight = true; hl.childForceExpandWidth = false;
+                if (marksKey != null)
+                {
+                    bool onMap = MarkSets.IsShown(marksKey);
+                    SmallButton(bar, onMap ? "MARKS: ON" : "MARKS: OFF", () => { MarkSets.Set(marksKey, !onMap); chatTime = default; nextPoll = 0; }, 110);
+                }
                 if (briefing != null)
                 {
                     string full = Path.Combine(ArchiveDir, briefing);
@@ -339,7 +346,14 @@ namespace OniAdvisor
                 OniStyle.Fill(row, OniStyle.Row, false);
                 var v = row.gameObject.AddComponent<VerticalLayoutGroup>();
                 v.padding = new RectOffset(10, 10, 6, 7); v.spacing = 3; v.childControlHeight = true; v.childControlWidth = true; v.childForceExpandHeight = false;
-                Text(row, $"<b>{Escape(title)}</b>", 15, OniStyle.Text);
+                // The checkbox shows this briefing's marks on the map again.
+                var head = OniStyle.Rect("head", row);
+                var hh = head.gameObject.AddComponent<HorizontalLayoutGroup>();
+                hh.spacing = 8; hh.childAlignment = TextAnchor.MiddleLeft; hh.childControlWidth = hh.childControlHeight = true; hh.childForceExpandWidth = false;
+                string key = "brief:" + file;
+                bool onMap = MarkSets.IsShown(key);
+                OniStyle.CheckBox(head, onMap, () => { MarkSets.Set(key, !onMap); indexTime = default; });
+                Text(head, $"<b>{Escape(title)}</b>", 15, OniStyle.Text).gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
                 Text(row, $"Cycle {cycle} · {n} step{(n == 1 ? "" : "s")} · {utc.ToLocalTime():ddd HH:mm}", 12, OniStyle.TextMuted);
                 var bar = OniStyle.Rect("actions", row);
                 var hl = bar.gameObject.AddComponent<HorizontalLayoutGroup>();

@@ -52,7 +52,8 @@ namespace OniAdvisor
         static readonly MarkRenderer layer = new MarkRenderer("projects");
         static System.DateTime fileTime;
         static string lastDrawKey = "";
-        static int focus = -1; // -1 = all projects
+        static int focus = -2; // -2 = only the ticked ones (the default), -1 = all projects, else one
+        static HashSet<string> ticked; // projects whose ghost the player ticked in the projects list (projects/shown.json)
 
         static string Dir => Paths.Sub("projects");
         static string FilePath => Path.Combine(Dir, "projects.json");
@@ -131,7 +132,7 @@ namespace OniAdvisor
                 }
                 projects.Add(proj);
             }
-            if (focus >= projects.Count) focus = -1;
+            if (focus >= projects.Count) focus = -2;
             lastDrawKey = "";
             Log.Info($"projects loaded: {projects.Count}");
         }
@@ -166,7 +167,7 @@ namespace OniAdvisor
                     sb.Append(it.Status).Append(it.Built).Append(it.Ordered).Append('|');
                 }
             }
-            string key = sb + "/" + focus + "/" + Overlays.ShowProjects + "/" + forcedId + "/" + forcedCount;
+            string key = sb + "/" + focus + "/" + string.Join(",", Ticked) + "/" + Overlays.ShowProjects + "/" + forcedId + "/" + forcedCount;
             if (key != lastDrawKey)
             {
                 lastDrawKey = key;
@@ -319,34 +320,60 @@ namespace OniAdvisor
             Refresh();
         }
 
-        /// <summary>Shows just this project's ghost (and turns the project overlay on).</summary>
+        /// <summary>Ticks this project, so its ghost shows (and turns the project overlay on).</summary>
         public static string Focus(string id)
         {
             int i = projects.FindIndex(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
             if (i < 0) return "No such project";
-            focus = i;
-            if (!Overlays.ShowProjects) Overlays.ShowProjectsNow();
-            lastDrawKey = "";
-            return "Showing " + projects[i].Name;
+            SetShown(projects[i].Id, true); // ticked: it stays until unticked in the projects list
+            return "Showing " + projects[i].Name + " (untick it under PROJECTS to hide it)";
         }
 
+        /// <summary>The hotkey: ticked ones only → each project in turn → all → ticked ones only.</summary>
         public static string CycleFocus()
         {
-            focus = projects.Count == 0 ? -1 : focus + 1 >= projects.Count ? -1 : focus + 1;
+            focus = projects.Count == 0 ? -2 : focus == -2 ? 0 : focus == -1 ? -2 : focus + 1 >= projects.Count ? -1 : focus + 1;
+            if (focus != -2 && !Overlays.ShowProjects) Overlays.ShowProjectsNow();
             lastDrawKey = "";
-            string d = projects.Count == 0 ? "none yet" : focus < 0 ? $"showing all {projects.Count}" : $"showing {projects[focus].Name}";
+            string d = projects.Count == 0 ? "none yet" : focus == -2 ? (Ticked.Count > 0 ? "showing the ticked ones" : "none shown (tick a project to show its blueprint)")
+                : focus == -1 ? $"showing all {projects.Count}" : $"showing {projects[focus].Name}";
             Log.Info("project focus: " + d);
             return d;
+        }
+
+        static string TickedFile => Path.Combine(Dir, "shown.json");
+
+        static HashSet<string> Ticked
+        {
+            get
+            {
+                if (ticked != null) return ticked;
+                ticked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try { if (File.Exists(TickedFile)) foreach (var t in JArray.Parse(File.ReadAllText(TickedFile))) ticked.Add((string)t); } catch { }
+                return ticked;
+            }
+        }
+
+        public static bool IsShown(string id) => !string.IsNullOrEmpty(id) && Ticked.Contains(id);
+
+        /// <summary>The player's checkbox on a project: its ghost stays on the map while ticked.</summary>
+        public static void SetShown(string id, bool on)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            if (on) { Ticked.Add(id); if (!Overlays.ShowProjects) Overlays.ShowProjectsNow(); } else Ticked.Remove(id);
+            try { Paths.WriteAtomic(TickedFile, new JArray(Ticked.ToArray()).ToString(Formatting.None)); } catch { }
+            lastDrawKey = "";
+            Refresh();
         }
 
         static void Draw()
         {
             layer.Clear();
-            layer.Visible = Overlays.ShowProjects || forcedId != null;
+            layer.Visible = (Overlays.ShowProjects && (focus != -2 || Ticked.Count > 0)) || forcedId != null;
             for (int pi = 0; pi < projects.Count; pi++)
             {
                 if (forcedId != null) { if (!string.Equals(projects[pi].Id, forcedId, StringComparison.OrdinalIgnoreCase)) continue; }
-                else if (focus >= 0 && pi != focus) continue;
+                else if (focus == -2 ? !Ticked.Contains(projects[pi].Id) : focus >= 0 && pi != focus && !Ticked.Contains(projects[pi].Id)) continue;
                 var p = projects[pi];
                 int n = 0;
                 foreach (var it in p.Items)
@@ -480,7 +507,8 @@ namespace OniAdvisor
             layer.Clear();
             fileTime = default;
             lastDrawKey = "";
-            focus = -1;
+            focus = -2;
+            ticked = null; // per colony
         }
     }
 }

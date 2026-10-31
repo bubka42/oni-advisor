@@ -40,7 +40,7 @@ namespace OniAdvisor
         {
             try { if (PlanMode.Active) PlanMode.Exit(send: false); } catch { }
             try { MapMemory.Shutdown(); } catch (Exception e) { Log.Warn("memory shutdown failed: " + e.Message); }
-            try { PlanMarks.DestroyAll(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); MarkChips.Destroy(); QuestPanel.Destroy(); QuestStore.Clear(); AdvisorHud.Destroy(); }
+            try { PlanMarks.DestroyAll(); MarkSets.Clear(); ProjectStore.Clear(); MarkRenderer.DestroyAll(); Overlays.Reset(); Config.Unfix(); Briefing.Destroy(); AdvisorPanel.Destroy(); TipBulb.Destroy(); Approvals.Destroy(); BuildPlacer.Clear(); GuidedPlan.Destroy(); ThinkingView.Destroy(); Pins.Destroy(); MarkChips.Destroy(); QuestPanel.Destroy(); QuestStore.Clear(); AdvisorHud.Destroy(); }
             catch (Exception e) { Log.Warn("cleanup failed: " + e.Message); }
             if (Instance == this) Instance = null;
         }
