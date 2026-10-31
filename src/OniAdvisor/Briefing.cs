@@ -295,8 +295,14 @@ namespace OniAdvisor
                 void Take(int x, int y) { minX = Math.Min(minX, x); minY = Math.Min(minY, y); maxX = Math.Max(maxX, x); maxY = Math.Max(maxY, y); }
                 foreach (var m in s.Marks)
                 {
-                    Take(m.X0, m.Y0); Take(m.X1, m.Y1);
-                    foreach (var p in m.Points) Take(p.x, p.y);
+                    // Only the corners a kind uses: a point's or an outline's unused second corner is (0,0), which
+                    // stretched the lit area to the map's corner and made the spotlight bigger than the screen.
+                    if (m.Points.Count > 0) foreach (var p in m.Points) Take(p.x, p.y);
+                    else
+                    {
+                        Take(m.X0, m.Y0);
+                        if (m.Kind == "area" || m.Kind == "line" || m.Kind == "arrow") Take(m.X1, m.Y1);
+                    }
                     if (m.Kind == "outline") { Take(m.X0 - 2, m.Y0 - 1); Take(m.X0 + 2, m.Y0 + 3); } // the building's size isn't known here
                 }
                 return new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);

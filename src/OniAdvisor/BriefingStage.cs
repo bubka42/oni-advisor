@@ -26,7 +26,7 @@ namespace OniAdvisor
         static TextMeshProUGUI captionTitle, captionText;
         static string fullText;
         static float shownAt, fadeTarget;
-        static bool hasArea;
+        static bool hasArea, logged; // logged: the first placement of a step went to the log (diagnosing the spotlight)
         static float x0, y0, x1, y1; // world rectangle (tiles) kept in the light
 
         /// <summary>A new step. area: tile rectangle to keep lit, or null for no spotlight.</summary>
@@ -41,6 +41,8 @@ namespace OniAdvisor
                 x0 = a.xMin - PadTiles; y0 = a.yMin - PadTiles; x1 = a.xMax + PadTiles; y1 = a.yMax + PadTiles;
             }
             fadeTarget = hasArea ? 1f : 0f;
+            logged = false;
+            Log.Info($"spotlight step: area {(area.HasValue ? area.Value.ToString() : "none")}, option {Prefs.Spotlight}");
             captionTitle.text = (title ?? "").ToUpperInvariant();
             fullText = Highlight(say ?? "");
             captionText.text = fullText;
@@ -113,6 +115,7 @@ namespace OniAdvisor
             Set(right, r, -10f, size.x + 10f, size.y + 10f);
             Set(bottom, l, -10f, r, bt);
             Set(top, l, tp, r, size.y + 10f);
+            if (!logged) { logged = true; Log.Info($"spotlight: canvas {size}, hole {l:0},{bt:0} - {r:0},{tp:0}, alpha {group.alpha:0.00}, root active {root.gameObject.activeInHierarchy}, sibling {root.GetSiblingIndex()}"); }
         }
 
         static void Set(RectTransform rt, float l, float b, float r, float t)
