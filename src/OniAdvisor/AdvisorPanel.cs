@@ -389,7 +389,7 @@ namespace OniAdvisor
             AdvisorHud.Show(next == "crisis" ? "Advisor: crisis mode, it comments on new events every minute"
                 : next == "longterm" ? "Advisor: long-term mode, only emergencies unasked; it works on the plan"
                 : next == "asked" ? "Advisor: speaks when asked (and in emergencies)"
-                : "Advisor: normal, a comment on new events at most every 5 minutes", 4f);
+                : "Advisor: normal, emergencies at once; otherwise it looks at the whole colony when things are calm", 4f);
         }
 
         /// <summary>

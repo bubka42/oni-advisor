@@ -24,10 +24,14 @@ public static class ColonyDigest
 
             if (r.TryGetProperty("dupes", out var dupes) && dupes.ValueKind == JsonValueKind.Array)
             {
-                sb.Append("Duplicants: ");
+                // The crew roster: who can do what (skills learned, interests, traits) next to what they are doing now.
+                sb.Append("Crew: ");
                 foreach (var d in dupes.EnumerateArray())
                 {
-                    sb.Append($"{Str(d, "name")} ({Str(d, "doing")}, stress {Num(d, "stress")}");
+                    string List(string prop) => d.TryGetProperty(prop, out var a) && a.ValueKind == JsonValueKind.Array && a.GetArrayLength() > 0
+                        ? string.Join("/", a.EnumerateArray().Select(x => x.GetString())) : "";
+                    string skills = List("skills"), interests = List("interests"), traits = List("traits");
+                    sb.Append($"{Str(d, "name")} [{(skills.Length > 0 ? skills : "no skills yet")}; likes {(interests.Length > 0 ? interests : "nothing")}{(traits.Length > 0 ? "; " + traits : "")}] ({Str(d, "doing")}, stress {Num(d, "stress")}");
                     if (d.TryGetProperty("skillPointsFree", out var sp) && sp.ValueKind == JsonValueKind.Number && sp.GetInt32() > 0) sb.Append($", {sp.GetInt32()} skill pt");
                     if (d.TryGetProperty("problems", out var pr) && pr.ValueKind == JsonValueKind.Array && pr.GetArrayLength() > 0)
                         sb.Append(", " + string.Join("/", pr.EnumerateArray().Select(x => x.GetString())));
@@ -95,7 +99,7 @@ public static class ColonyDigest
             if (r.TryGetProperty("pod", out var pod) && Bool(pod, "printablesReady")) sb.AppendLine("Printing Pod: options ready (live/pod.json).");
 
             var text = sb.ToString();
-            return text.Length > 3500 ? text[..3500] + "…" : text;
+            return text.Length > 7000 ? text[..7000] + "…" : text; // room for the crew roster of a large colony
         }
         catch (Exception e) { return "(no colony summary available: " + e.Message + ")"; }
     }

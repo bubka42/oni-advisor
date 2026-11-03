@@ -69,7 +69,7 @@ public sealed class Quests
         // Milestones tick themselves only with a check the game can measure: remind until each has one.
         var noCheck = qs.Where(q => q.Status is "proposed" or "accepted" or "stalled" && q.Unchecked > 0).Select(q => $"{q.Title} [{q.Id}] ({q.Unchecked})").ToList();
         if (noCheck.Count > 0)
-            line += $"\nMILESTONES WITHOUT A CHECK in: {string.Join("; ", noCheck)}. Rewrite them as actions the player does, each with a \"check\" the game measures (CLAUDE.md, \"Projects\"); keep reached ones.";
+            line += $"\nMILESTONES WITHOUT A CHECK in: {string.Join("; ", noCheck)}. Rewrite them as actions the player does, each with a \"check\" the game measures (ref/projects.md); keep reached ones.";
         if (missing.Count > 0)
             line += $"\nNO BLUEPRINT YET for: {string.Join("; ", missing)}. Draft one (the most useful first; one per turn is fine) in live/projects/projects.json and link it from the quest with \"project\", so the player sees its ghost.";
         return line;

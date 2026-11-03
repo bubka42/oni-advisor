@@ -128,6 +128,11 @@ namespace OniAdvisor
                     d["interests"] = new JArray(resume.AptitudeBySkillGroup.Where(kv => kv.Value > 0f)
                         .Select(kv => SkillGroupName(kv.Key)));
                 }
+                // Traits (what they're good or bad at, and their stress reaction): the crew's roles depend on them.
+                var traits = go.GetComponent<Klei.AI.Traits>();
+                if (traits != null)
+                    d["traits"] = new JArray(traits.TraitList.Where(t => t != null && !string.IsNullOrEmpty(t.Name))
+                        .Select(t => (t.PositiveTrait ? "+" : "-") + StripName(t.Name)));
 
                 var pe = go.GetComponent<PrimaryElement>();
                 if (pe != null && pe.DiseaseIdx != byte.MaxValue && pe.DiseaseCount > 0)

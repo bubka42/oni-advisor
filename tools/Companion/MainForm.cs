@@ -277,7 +277,7 @@ public sealed class MainForm : Form
     // ------------------------------------------------------------------ workspace
 
     /// <summary>
-    /// Copies CLAUDE.md (advisor instructions) into the advisor folder when it is missing or older, and the
+    /// Copies CLAUDE.md (advisor instructions) and ref/*.md (its reference files) into the advisor folder when missing or older, and the
     /// player.md template when there is none yet (never over the player's own).
     /// </summary>
     void EnsureWorkspace()
@@ -290,6 +290,18 @@ public sealed class MainForm : Form
             {
                 File.Copy(src, dst, overwrite: true);
                 System("Updated advisor instructions (CLAUDE.md).");
+            }
+            // The reference files the instructions point to (formats, numbers, tools), read when needed.
+            var refSrc = Path.Combine(repoRoot, "advisor-workspace", "ref");
+            if (Directory.Exists(refSrc))
+            {
+                var refDst = Path.Combine(advisorDir, "ref");
+                Directory.CreateDirectory(refDst);
+                foreach (var f in Directory.GetFiles(refSrc, "*.md"))
+                {
+                    var d = Path.Combine(refDst, Path.GetFileName(f));
+                    if (!File.Exists(d) || File.GetLastWriteTimeUtc(f) > File.GetLastWriteTimeUtc(d)) File.Copy(f, d, overwrite: true);
+                }
             }
             var profile = Path.Combine(advisorDir, "player.md");
             var template = Path.Combine(repoRoot, "advisor-workspace", "player.md");
@@ -704,7 +716,7 @@ public sealed class MainForm : Form
     /// Every ~10 s: follow the game; let the advisor speak up when something new happened, and when things are
     /// calm, have it look ahead and advance the long-term plan. How eagerly is the player's choice (in-game):
     ///   crisis    new events may prompt a comment every minute (serious ones sooner); no plan reviews
-    ///   normal    new events at most every ProactiveMinSeconds (at least 5 minutes); plan reviews when calm
+    ///   normal    only serious new events interrupt; plan reviews (the whole colony) when calm
     ///   longterm  only serious new events; plan reviews (at least every 20 minutes) carry the long-term plan
     ///   asked     only serious new events; otherwise it speaks when asked
     /// Repeats of recent events never prompt a comment (GameWatch.HasNews).
@@ -719,7 +731,9 @@ public sealed class MainForm : Form
         if (settings.Proactive == "never" || advisor.Busy) return;
         // The advice level narrows (or widens) what the advisor may bring up unasked.
         string level = settings.AdviceLevel;
-        bool seriousOnly = settings.Proactive == "serious" || level == "minimal" || eagerness is "longterm" or "asked";
+        // Only "crisis" reacts to every new event; otherwise events wait for the next prompt, and only serious ones
+        // (someone may get hurt) interrupt. The big picture comes from calm-moment reviews and cycle briefings instead.
+        bool seriousOnly = settings.Proactive == "serious" || level == "minimal" || eagerness is not "crisis";
         int minGapSeconds = eagerness switch
         {
             "crisis" => 60,
@@ -989,7 +1003,7 @@ public sealed class MainForm : Form
         switch (trigger)
         {
             case "autosave":
-                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. Start from the colony survey below, not from your own projects: what in it matters most right now (no real rooms, idle labour, research stopped, power only if the survey says it is in trouble, a researched building that would solve a problem or open a new stage), then the most pressing open question in live/colony-plan.md answered on the map. Projects whose status hasn't changed get one line at most. Then reply with one sentence on what it covers.");
+                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see ref/briefings.md), with plenty of marks. Start from the colony survey below, not from your own projects: what in it matters most right now (no real rooms, idle labour, research stopped, power only if the survey says it is in trouble, a researched building that would solve a problem or open a new stage), then the most pressing open question in live/colony-plan.md answered on the map. Projects whose status hasn't changed get one line at most. Then reply with one sentence on what it covers.");
                 if (ColonyDigest.Survey(liveDir) is { Length: > 0 } cycleSurvey) sb.AppendLine(cycleSurvey);
                 if (Briefings.Recent(liveDir, 4) is { Count: > 0 } recent)
                     sb.AppendLine("Your last briefings: " + string.Join(" | ", recent) + ". Don't lead with a topic they already covered unless it got materially worse; the player has heard it. Use this one for something new: a project to propose, a building or room to add, the next expansion step in concrete terms.");
@@ -1001,12 +1015,12 @@ public sealed class MainForm : Form
                 if (text == null && ColonyDigest.Survey(liveDir) is { Length: > 0 } askedSurvey) sb.AppendLine(askedSurvey);
                 break;
             case "pod":
-                sb.AppendLine("The Printing Pod selection is open: recommend one option from live/pod.json, briefly saying why.");
+                sb.AppendLine("The Printing Pod selection is open (options in live/pod.json). Judge each option against the crew above and the colony's needs: which jobs are already covered and by whom, which are uncovered or overloaded, what the next projects need (building, digging, farming, cooking, research, ranching, operating), and whether the colony has the food, oxygen and beds for one more (if not, a care package may be better). Recommend one: \"Take X: …\" with the reason in terms of the crew, plus a line on why not the others. Note the crew's roles and gaps in colony-plan.md if they aren't there.");
                 break;
             case "guide":
                 {
                     string name = (string?)req?["name"] ?? (string?)req?["prefab"] ?? "building";
-                    sb.AppendLine($"GUIDED PLANNING: the player is holding a {name} (prefab {(string?)req?["prefab"]}, rotation {(string?)req?["rotation"]}) in the build tool at ({(int?)req?["x"]}, {(int?)req?["y"]}) and asked for guided planning: lay out everything it needs around that spot (see CLAUDE.md, \"Guided planning\"). " +
+                    sb.AppendLine($"GUIDED PLANNING: the player is holding a {name} (prefab {(string?)req?["prefab"]}, rotation {(string?)req?["rotation"]}) in the build tool at ({(int?)req?["x"]}, {(int?)req?["y"]}) and asked for guided planning: lay out everything it needs around that spot (see ref/projects.md, \"Guided planning\"). " +
                         ((bool?)req?["another"] == true ? "They asked for ANOTHER layout: make it genuinely different from your previous one (other placement or approach). " : "") +
                         "Look at the area first (MapQuery region/buildings/pipes/ports/rates around it). Write the layout as the project with id \"guide\" in live/projects/projects.json (replace any earlier \"guide\" project, keep the others), with the held building as an item at (or within a tile or two of) that spot. Check live/projects/projects-status.json and fix anything blocked. Then reply in one or two sentences: what the layout does, and anything the player must decide or watch out for.");
                     break;
@@ -1022,8 +1036,7 @@ public sealed class MainForm : Form
                 break;
             case "review":
                 if (ColonyDigest.Survey(liveDir) is { Length: > 0 } reviewSurvey) sb.AppendLine(reviewSurvey);
-                sb.AppendLine("This review's focus (areas take turns): " + ReviewFocus[reviewFocus++ % ReviewFocus.Length] + " Look at it properly on the map, even if nothing in it has raised an alarm. If it turns up a real question the colony faces, add it to the open questions in live/colony-plan.md (or answer it now, and tell the player).");
-                sb.AppendLine("Nothing was asked and nothing urgent is going on: time to work on the big picture (CLAUDE.md, \"What you are for\" and \"Long-term planning\"). Start with anything in the colony survey above that the player hasn't been told; then take the most pressing of the open questions in live/colony-plan.md (where to get the next resource and how to reach it past the hazards, food for the coming 20 cycles, base layout and rooms, which researched buildings to build next, ...; add questions the colony now faces) and answer it properly: explore the map memory (MapQuery find, region terrain/gas around the route), work out the where and the how, draw it (marks, a drafted project) and give the player a short [later] tip or a briefing. Also review live/colony-plan.md and the projects (live/quests.json, live/quests-state.json; CLAUDE.md, \"Projects\") against the colony as it is now: update the plan, propose a project when the player has no good next one, scrap proposals that no longer fit, rewrite milestones that have no check into actions with a check (see CLAUDE.md, \"Projects\"; keep reached ones), set looksDone on check-less ones you confirm, and give advice on ongoing or stalled projects where it matters. If the next step deserves the player's attention — a project to start, a milestone reached, a risk building up over the coming cycles — draft it (projects.json, marks) and give a [later] tip about it, or write a briefing if it's a bigger plan. If nothing changed since your last review, update the file if needed and reply exactly: (silent)");
+                sb.AppendLine("A calm moment, nothing asked. Step back like a strong player would: read live/state.json in full and live/colony-plan.md, and form your picture of the whole colony (how its oxygen, food, water, power and heat hang together, the crew and its gaps, the map around the base, the stage of the game). Then look properly at this review's focus (areas take turns): " + ReviewFocus[reviewFocus++ % ReviewFocus.Length] + " Then do what that picture calls for: answer one open question on the map (or add a real new one), keep two to four project proposals open with pitches and blueprints, and update colony-plan.md (crew and roles included). Tell the player only what is new and worth their attention: a short [later] tip, or a briefing for a bigger plan. Otherwise reply exactly: (silent)");
                 break;
         }
         if (text != null && trigger is "ask" or "chat") sb.AppendLine($"Player ({(via == "voice" ? "spoken" : "typed")}): {text}");
