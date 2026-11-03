@@ -49,5 +49,9 @@ namespace OniAdvisor
 
         /// <summary>How eagerly the advisor speaks up unasked: crisis, normal, longterm or asked (the in-game control).</summary>
         public static string Eagerness => (string)Json["Eagerness"] ?? "normal";
+
+        /// <summary>The advisor's model and how hard it thinks (the companion's defaults: sonnet, medium).</summary>
+        public static string Model => (string)Json["Model"] ?? "sonnet";
+        public static string Effort => (string)Json["Effort"] ?? "medium";
     }
 }

@@ -28,7 +28,7 @@ namespace OniAdvisor
         static RectTransform panel, chatPage, briefPage, planPage, chatList, briefList, planList, streamRow, threadBar;
         static TextMeshProUGUI streamText, threadTitle, planText;
         static RectTransform projectsBox;
-        static TextMeshProUGUI eagerLabel;
+        static TextMeshProUGUI eagerLabel, modelLabel;
         static string eagerShown;
         static string projectsKey;
         static readonly Dictionary<Page, TextMeshProUGUI> tabLabels = new Dictionary<Page, TextMeshProUGUI>();
@@ -91,6 +91,8 @@ namespace OniAdvisor
             if (p == Page.Chat && focus) Focus();
             TipBulb.AllSeen(); // the tips are in the chat
             if (eagerLabel != null) eagerLabel.text = EagernessLabel(Prefs.Eagerness); // it may have changed in the options
+            modelShown = (Prefs.Model, Prefs.Effort); // it may have changed in the options
+            if (modelLabel != null) modelLabel.text = ModelLabel(Prefs.Model, Prefs.Effort);
         }
 
         public static void Close()
@@ -372,6 +374,33 @@ namespace OniAdvisor
 
         static string EagernessLabel(string e) => "SPEAKS UP: " + (e == "crisis" ? "CRISIS" : e == "longterm" ? "LONG-TERM" : e == "asked" ? "WHEN ASKED" : "NORMAL");
 
+        // ------------------------------------------------------------------ model
+
+        static readonly (string model, string effort)[] ModelOrder = { ("sonnet", "medium"), ("sonnet", "high"), ("opus", "medium"), ("opus", "high") };
+
+        static string ModelLabel(string model, string effort) => $"MODEL: {model.ToUpperInvariant()} · {effort.ToUpperInvariant()}";
+
+        static (string model, string effort)? modelShown; // the last choice (settings are re-read at most once a second)
+
+        /// <summary>
+        /// Which model the advisor runs on and how hard it thinks, changed in the game. Saved to companion.json; the
+        /// companion restarts the advisor with it at once, and the conversation continues.
+        /// </summary>
+        static void CycleModel()
+        {
+            var cur = modelShown ?? (Prefs.Model, Prefs.Effort);
+            int i = Array.FindIndex(ModelOrder, m => m.model == cur.model && m.effort == cur.effort);
+            var (model, effort) = ModelOrder[(i + 1) % ModelOrder.Length];
+            ModOptions.WriteSetting("Model", model);
+            ModOptions.WriteSetting("Effort", effort);
+            ModOptions.Request("settings", null);
+            modelShown = (model, effort);
+            if (modelLabel != null) modelLabel.text = ModelLabel(model, effort);
+            AdvisorHud.Show(model == "opus"
+                ? $"Advisor: Opus, {effort} effort: deeper and slower; uses your Claude limits faster"
+                : $"Advisor: Sonnet, {effort} effort: quicker and lighter on your Claude limits", 4f);
+        }
+
         /// <summary>
         /// How eagerly the advisor speaks up unasked, changed in the game: crisis (comments on new events every
         /// minute), normal, long-term (only serious events; works on the plan when calm), when asked (only serious
@@ -490,7 +519,7 @@ namespace OniAdvisor
             threadTitle = OniStyle.Label(tt, "", 14, header: true, color: OniStyle.HeaderLight, align: TextAlignmentOptions.MidlineLeft, wrap: false);
             threadBar.gameObject.SetActive(false);
 
-            chatList = ScrollList(chatPage, new Vector2(10, 92), new Vector2(-10, -40), out chatScroll);
+            chatList = ScrollList(chatPage, new Vector2(10, 130), new Vector2(-10, -40), out chatScroll);
             streamRow = OniStyle.Rect("stream", chatList);
             var sv = streamRow.gameObject.AddComponent<VerticalLayoutGroup>();
             sv.padding = new RectOffset(10, 10, 6, 8); sv.childControlHeight = true; sv.childControlWidth = true; sv.childForceExpandHeight = false;
@@ -500,7 +529,7 @@ namespace OniAdvisor
 
             var inputRow = OniStyle.Rect("input-row", chatPage);
             inputRow.anchorMin = new Vector2(0, 0); inputRow.anchorMax = new Vector2(1, 0); inputRow.pivot = new Vector2(0.5f, 0);
-            inputRow.sizeDelta = new Vector2(-20, 40); inputRow.anchoredPosition = new Vector2(0, 46);
+            inputRow.sizeDelta = new Vector2(-20, 40); inputRow.anchoredPosition = new Vector2(0, 84);
             var il = inputRow.gameObject.AddComponent<HorizontalLayoutGroup>();
             il.spacing = 6; il.childControlWidth = true; il.childControlHeight = true; il.childForceExpandWidth = false;
             input = InputBox(inputRow);
@@ -515,9 +544,19 @@ namespace OniAdvisor
             OniStyle.MakeButton(bar, "BRIEF ME", () => { AdvisorHud.Show("Asking the advisor for a briefing…", 3f); AdvisorRunner.Instance?.RequestBriefing(); }, 100);
             OniStyle.MakeButton(bar, "STOP", () => AdvisorRunner.WriteRequest("stop", null), 70);
             OniStyle.MakeButton(bar, "NEW CHAT", () => AdvisorRunner.WriteRequest("new-chat", null), 100);
-            var eager = OniStyle.MakeButton(bar, EagernessLabel(Prefs.Eagerness), () => { }, 230);
+
+            // Second row: how eagerly it speaks up, and which model thinks how hard.
+            var bar2 = OniStyle.Rect("buttons-2", chatPage);
+            bar2.anchorMin = new Vector2(0, 0); bar2.anchorMax = new Vector2(1, 0); bar2.pivot = new Vector2(0.5f, 0);
+            bar2.sizeDelta = new Vector2(-20, 32); bar2.anchoredPosition = new Vector2(0, 46);
+            var bl2 = bar2.gameObject.AddComponent<HorizontalLayoutGroup>();
+            bl2.spacing = 6; bl2.childAlignment = TextAnchor.MiddleCenter; bl2.childControlWidth = true; bl2.childControlHeight = true; bl2.childForceExpandWidth = false;
+            var eager = OniStyle.MakeButton(bar2, EagernessLabel(Prefs.Eagerness), () => { }, 260);
             eagerLabel = eager.GetComponentInChildren<TextMeshProUGUI>();
             eager.onClick.AddListener(CycleEagerness);
+            var model = OniStyle.MakeButton(bar2, ModelLabel(Prefs.Model, Prefs.Effort), () => { }, 290);
+            modelLabel = model.GetComponentInChildren<TextMeshProUGUI>();
+            model.onClick.AddListener(CycleModel);
 
             // Briefings: list.
             briefList = ScrollList(briefPage, new Vector2(10, 10), new Vector2(-10, -8), out _);
