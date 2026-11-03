@@ -56,12 +56,16 @@ public sealed class Quests
             return items.Count == 0 ? "" : $"{label}: {string.Join("; ", items)}";
         }
         var parts = new[] { Part("accepted", "ongoing"), Part("proposed", "proposed"), Part("stalled", "on hold") }.Where(p => p.Length > 0).ToList();
-        if (parts.Count == 0) return "";
-        string line = "Projects (live/quests.json + the player's live/quests-state.json): " + string.Join(" | ", parts);
+        // (No open projects at all still gets the proposals reminder below.)
+        string line = "Projects (live/quests.json + the player's live/quests-state.json): " + (parts.Count > 0 ? string.Join(" | ", parts) : "none open");
         // Infrastructure projects need a drafted blueprint (the ghost the player sees): remind until there is one.
         var drafted = DraftedProjects();
         var missing = qs.Where(q => q.Kind != "colony" && q.Status is "proposed" or "accepted" && (q.Project == null || !drafted.Contains(q.Project)))
                         .Select(q => $"{q.Title} [{q.Id}]").ToList();
+        // The player should always have something new to choose from.
+        int open = qs.Count(q => q.Status == "proposed");
+        if (open < 2)
+            line += $"\nONLY {open} OPEN PROPOSAL{(open == 1 ? "" : "S")}: propose new projects (two to four open at a time): the next expansion as a concrete dig project, rooms or buildings the colony now lacks (see the survey's researched-but-not-built list), food, morale. Each with a pitch, a blueprint where there is a layout, and checked milestones.";
         // Milestones tick themselves only with a check the game can measure: remind until each has one.
         var noCheck = qs.Where(q => q.Status is "proposed" or "accepted" or "stalled" && q.Unchecked > 0).Select(q => $"{q.Title} [{q.Id}] ({q.Unchecked})").ToList();
         if (noCheck.Count > 0)

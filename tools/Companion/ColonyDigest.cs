@@ -147,14 +147,23 @@ public static class ColonyDigest
                 if (res.TryGetProperty("researchedNotBuilt", out var nb) && nb.GetArrayLength() > 0)
                     lines.Add("Researched but none built (does any of these solve a current problem?): " + string.Join(", ", nb.EnumerateArray().Select(x => x.GetString()).Take(40)) + ".");
             }
+            // Power only when it is a real problem now: a circuit drawing near or over its wire limit, or batteries
+            // empty. (What a circuit could draw with every machine on is not one: machines never all run at once.)
             if (r.TryGetProperty("power", out var power) && power.ValueKind == JsonValueKind.Array)
+            {
+                bool trouble = false;
                 foreach (var c in power.EnumerateArray())
                 {
-                    double need = c.TryGetProperty("wattsNeededWhenAllActive", out var w) && w.ValueKind == JsonValueKind.Number ? w.GetDouble() : 0;
+                    double used = c.TryGetProperty("wattsUsed", out var u) && u.ValueKind == JsonValueKind.Number ? u.GetDouble() : 0;
                     double safe = c.TryGetProperty("maxSafeWatts", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetDouble() : 0;
-                    if (safe > 0 && need > safe)
-                        lines.Add($"Wiring: circuit {Num(c, "id")} could draw {need:0} W with everything on, but its weakest wire carries {safe:0} W: a design limit (split it, heavier wire, transformers), not a one-off fault.");
+                    double stored = c.TryGetProperty("joulesStored", out var j) && j.ValueKind == JsonValueKind.Number ? j.GetDouble() : -1;
+                    double gen = c.TryGetProperty("wattsGenerated", out var g) && g.ValueKind == JsonValueKind.Number ? g.GetDouble() : 0;
+                    if (safe > 0 && used > safe * 0.9) { trouble = true; lines.Add($"Power: circuit {Num(c, "id")} is drawing {used:0} W now on wire rated {safe:0} W."); }
+                    bool hasBatteries = c.TryGetProperty("batteries", out var bl) && bl.ValueKind == JsonValueKind.Array && bl.GetArrayLength() > 0; // transformer-fed branches have none
+                    if (hasBatteries && stored == 0 && used > gen) { trouble = true; lines.Add($"Power: circuit {Num(c, "id")} has empty batteries and uses more than it makes."); }
                 }
+                if (!trouble) lines.Add("Power: no circuit is near its wire limit and none has run dry. Not a topic for this briefing unless the player asks.");
+            }
             if (r.TryGetProperty("frontier", out var fr) && fr.ValueKind == JsonValueKind.Object)
                 lines.Add($"Around the base ({Str(fr, "base")}; within 25 tiles, revealed tiles as last seen):" + string.Concat(
                     new[] { "above", "below", "left", "right" }.Where(d => Str(fr, d).Length > 0).Select(d => $"\n    {d}: {Str(fr, d)}")));

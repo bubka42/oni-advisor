@@ -380,6 +380,8 @@ namespace OniAdvisor
             foreach (var crop in Components.Crops.Items)
             {
                 if (crop == null) continue;
+                var rm = crop.GetComponent<ReceptacleMonitor>();
+                if (rm == null || !rm.Replanted) continue; // wild plants are not the player's farm
                 total++;
                 var wilt = crop.GetComponent<WiltCondition>();
                 var problems = Statuses(crop.gameObject, problemsOnly: true);

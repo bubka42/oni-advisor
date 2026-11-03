@@ -31,6 +31,13 @@ public static class Briefings
         return (title, file, string.Join(" · ", steps));
     }
 
+    /// <summary>The last few briefings as "c57 Two power islands, then the east front", newest last.</summary>
+    public static List<string> Recent(string liveDir, int count)
+    {
+        var index = LoadIndex(Path.Combine(liveDir, "briefing", "archive"));
+        return index.Skip(Math.Max(0, index.Count - count)).Select(e => $"c{(int?)e?["cycle"]} {(string?)e?["title"]}").ToList();
+    }
+
     /// <summary>Links an archived briefing to its chat entry (= its thread).</summary>
     public static void SetChat(string liveDir, string file, long chatN)
     {

@@ -989,8 +989,10 @@ public sealed class MainForm : Form
         switch (trigger)
         {
             case "autosave":
-                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. Start from the colony survey below, not from your own projects: what in it matters most right now (no real rooms, idle labour, research stopped, wiring over its limit, a researched building that would solve a problem), then the most pressing open question in live/colony-plan.md answered on the map. Projects whose status hasn't changed get one line at most. Then reply with one sentence on what it covers.");
+                sb.AppendLine("A new cycle began (autosave). Write the cycle briefing draft to live/briefing/draft.json (you will be asked to check it before it is shown) — as long as the situation needs (see CLAUDE.md), with plenty of marks. Start from the colony survey below, not from your own projects: what in it matters most right now (no real rooms, idle labour, research stopped, power only if the survey says it is in trouble, a researched building that would solve a problem or open a new stage), then the most pressing open question in live/colony-plan.md answered on the map. Projects whose status hasn't changed get one line at most. Then reply with one sentence on what it covers.");
                 if (ColonyDigest.Survey(liveDir) is { Length: > 0 } cycleSurvey) sb.AppendLine(cycleSurvey);
+                if (Briefings.Recent(liveDir, 4) is { Count: > 0 } recent)
+                    sb.AppendLine("Your last briefings: " + string.Join(" | ", recent) + ". Don't lead with a topic they already covered unless it got materially worse; the player has heard it. Use this one for something new: a project to propose, a building or room to add, the next expansion step in concrete terms.");
                 break;
             case "briefing":
                 sb.AppendLine(text != null

@@ -27,6 +27,12 @@ grams, is noise. Your value is the **big picture** and the parts that are hard t
   to — slime (polluted oxygen, Slimelung germs, polluted water), chlorine (unbreathable, sinks, but kills
   germs), heat or cold, water that would flood. Say which direction to expand, how to seal or use each
   hazard, and what to build first; idle duplicants are the labour for it.
+  **"Grow east" is not advice; a plan is.** An expansion recommendation is a project the player can start
+  today: the destination and what it is for (the coal band, room for a farm); the dig route drawn as a path
+  mark; each hazard on the way with its specific counter placed on the map (tiles sealing the chlorine
+  pocket here, an airlock of two doors there, a mask checkpoint at the shaft); a drafted blueprint (ladder,
+  dig, tiles, doors, the first building at the far end); milestones with `dig` and `build` checks; and what
+  the new space becomes once reached. Propose it as a project with a pitch, not a sentence in a briefing.
 - **Crops that stall**: the survey lists stalled plants with the reason and the temperature where they
   stand. Say what fixes them for good (insulation, moving the farm, a crop that suits that temperature,
   cooling or heating), not just that they stalled.
@@ -308,8 +314,10 @@ whatever its state):
 - **Milestones**: 3–7 actions in the order they get done, each with a check (above). Link a blueprint with
   `"project"` (an id in `projects.json`) when there is a layout to place; blueprint pieces make the best
   checks.
-- **How many**: two to four proposals at a time, a mix of short and long, the most useful first. Don't
-  re-propose what the player declined unless the situation changed (and say what changed).
+- **How many**: always two to four *open* proposals, a mix of short and long, the most useful first. When
+  the player accepts or completes one, propose the next: a growing colony always has a next room, building,
+  farm or expansion step. Don't re-propose what the player declined unless the situation changed (and say
+  what changed).
 - **Housekeeping**: set `"status": "scrapped"` on proposals that no longer fit (the game hides them; it
   cannot scrap what the player accepted). Keep ids stable; edit or add milestones freely, but keep reached
   ones as they are (same id and text).
@@ -557,8 +565,8 @@ step's marks and project, and reads each `say` aloud.
 - Order by urgency: what keeps duplicants alive first, then what is about to break, then the next build,
   then the long-term plan.
 - **A cycle briefing is about direction, not the event log or your own projects.** The prompt carries a
-  **colony survey** (rooms the game recognises, idle duplicants, unspent skill points, research, wiring
-  against its limit, researched-but-unbuilt buildings). Start there: whatever in it matters most now is the
+  **colony survey** (rooms the game recognises, idle duplicants, unspent skill points, research, power
+  only when it is really in trouble, researched-but-unbuilt buildings). Start there: whatever matters most is the
   first step — no real rooms means no morale bonuses; ten idle dupes is a project waiting to happen; a
   researched building nobody built may be the answer to a current problem (oxygen masks for digging
   through carbon dioxide, a transformer for an overloaded grid). Then answer one open question on the map.
