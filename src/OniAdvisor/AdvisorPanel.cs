@@ -33,6 +33,7 @@ namespace OniAdvisor
         static string projectsKey;
         static readonly Dictionary<Page, TextMeshProUGUI> tabLabels = new Dictionary<Page, TextMeshProUGUI>();
         static TMP_InputField input;
+        static RectTransform inputRow; // grows with the typed text (FitInput)
         static ScrollRect chatScroll;
         static bool open;
         static Page page = Page.Chat;
@@ -527,7 +528,7 @@ namespace OniAdvisor
             streamText = Text(streamRow, "", 15, OniStyle.Text);
             streamRow.gameObject.SetActive(false);
 
-            var inputRow = OniStyle.Rect("input-row", chatPage);
+            inputRow = OniStyle.Rect("input-row", chatPage);
             inputRow.anchorMin = new Vector2(0, 0); inputRow.anchorMax = new Vector2(1, 0); inputRow.pivot = new Vector2(0.5f, 0);
             inputRow.sizeDelta = new Vector2(-20, 40); inputRow.anchoredPosition = new Vector2(0, 84);
             var il = inputRow.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -634,7 +635,9 @@ namespace OniAdvisor
             var placeholder = OniStyle.Label(placeholderRt, "Ask the advisor…  (Enter sends, Esc leaves the box)", 18, color: new Color(0.24f, 0.26f, 0.34f, 0.6f), align: TextAlignmentOptions.MidlineLeft, wrap: false);
             var textRt = OniStyle.Rect("text", area);
             OniStyle.Stretch(textRt);
-            var text = OniStyle.Label(textRt, "", 18, color: OniStyle.ButtonText, align: TextAlignmentOptions.MidlineLeft, wrap: false);
+            // Wraps, and the box grows with it (FitInput); past the tallest size the field scrolls its text.
+            var text = OniStyle.Label(textRt, "", 18, color: OniStyle.ButtonText, align: TextAlignmentOptions.TopLeft, wrap: true);
+            text.overflowMode = TextOverflowModes.Overflow;
             text.richText = false;
             var field = box.gameObject.AddComponent<TMP_InputField>();
             field.targetGraphic = bg;
@@ -643,11 +646,28 @@ namespace OniAdvisor
             field.placeholder = placeholder;
             if (OniStyle.BodyFont != null) field.fontAsset = OniStyle.BodyFont;
             field.pointSize = 18;
-            field.lineType = TMP_InputField.LineType.SingleLine;
+            field.lineType = TMP_InputField.LineType.MultiLineSubmit; // wraps; Enter still sends
             field.caretColor = OniStyle.ButtonText;
             field.customCaretColor = true;
             field.onSubmit.AddListener(_ => Send());
+            field.onValueChanged.AddListener(_ => FitInput());
             return field;
+        }
+
+        const float InputMin = 40f, InputMax = 150f; // one line … about five lines; beyond that the text scrolls
+
+        /// <summary>The text box grows with what is typed (and shrinks back after sending); the chat above makes room.</summary>
+        static void FitInput()
+        {
+            if (input == null || inputRow == null) return;
+            var area = input.textViewport;
+            float width = area != null ? area.rect.width : 0f;
+            if (width <= 0f) return;
+            float textHeight = input.textComponent.GetPreferredValues((input.text ?? "") + " ", width, 0f).y;
+            float h = Mathf.Clamp(textHeight + 10f, InputMin, InputMax);
+            if (Mathf.Abs(inputRow.sizeDelta.y - h) < 0.5f) return;
+            inputRow.sizeDelta = new Vector2(inputRow.sizeDelta.x, h);
+            if (chatScroll != null) ((RectTransform)chatScroll.transform).offsetMin = new Vector2(10f, 130f - InputMin + h);
         }
 
         const float TextScale = 1.3f; // 15 px -> ~19-20 px: close to the advisor card's text, easy to read over the game
@@ -692,7 +712,7 @@ namespace OniAdvisor
         {
             Close();
             if (panel != null) UnityEngine.Object.Destroy(panel.gameObject);
-            panel = null; chatList = null; briefList = null; planList = null; streamRow = null; input = null;
+            panel = null; chatList = null; briefList = null; planList = null; streamRow = null; input = null; inputRow = null;
             chatRows.Clear(); tabLabels.Clear();
         }
     }
